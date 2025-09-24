@@ -13,6 +13,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: any }>
   signUp: (email: string, password: string, userType: string, firstName: string, lastName: string, clinicId?: string) => Promise<{ error: any }>
   signOut: () => Promise<void>
+  fetchProfile: (userId: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -74,13 +75,76 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         console.error('Error fetching profile:', error)
+        // If profile doesn't exist, try to create it from user metadata
+        if (error.code === 'PGRST116') {
+          console.log('Profile not found, creating from user metadata')
+          await createProfileFromUser(userId)
+        }
       } else {
+        // Check if profile user_type matches metadata user_type
+        const { data: userData } = await supabase.auth.getUser()
+        if (userData.user) {
+          const metadataUserType = userData.user.user_metadata?.user_type
+          if (metadataUserType && metadataUserType !== data.user_type) {
+            // Auto-fix the user type
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({ user_type: metadataUserType })
+              .eq('id', userId)
+            
+            if (!updateError) {
+              // Fetch the updated profile
+              const { data: updatedData } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', userId)
+                .single()
+              
+              if (updatedData) {
+                setProfile(updatedData)
+                return
+              }
+            }
+          }
+        }
+        
         setProfile(data)
       }
     } catch (error) {
       console.error('Error fetching profile:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const createProfileFromUser = async (userId: string) => {
+    try {
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      if (userError || !userData.user) return
+
+      const user = userData.user
+      const metadata = user.user_metadata || {}
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          email: user.email || '',
+          user_type: metadata.user_type || 'patient',
+          first_name: metadata.first_name || '',
+          last_name: metadata.last_name || '',
+          clinic_id: metadata.clinic_id || null
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error creating profile:', error)
+      } else {
+        setProfile(data)
+      }
+    } catch (error) {
+      console.error('Error creating profile from user:', error)
     }
   }
 
@@ -120,6 +184,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     })
+
+    if (data.user && !error) {
+      // Manually create profile to ensure it's created correctly
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: data.user.id,
+          email: email,
+          user_type: userType,
+          first_name: firstName,
+          last_name: lastName,
+          clinic_id: clinicId || null
+        })
+      
+      if (profileError) {
+        console.error('Error creating profile manually:', profileError)
+      }
+    }
   
     return { error }
   }
@@ -139,6 +221,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signIn,
     signUp,
     signOut,
+    fetchProfile,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

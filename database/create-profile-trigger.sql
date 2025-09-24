@@ -2,13 +2,18 @@
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, user_type, first_name, last_name)
+  INSERT INTO public.profiles (id, email, user_type, first_name, last_name, clinic_id)
   VALUES (
     NEW.id,
     NEW.email,
-    'patient', -- Default user type, can be updated later
+    COALESCE(NEW.raw_user_meta_data->>'user_type', 'patient')::user_type, -- Use user_type from metadata
     COALESCE(NEW.raw_user_meta_data->>'first_name', ''),
-    COALESCE(NEW.raw_user_meta_data->>'last_name', '')
+    COALESCE(NEW.raw_user_meta_data->>'last_name', ''),
+    CASE 
+      WHEN NEW.raw_user_meta_data->>'user_type' = 'practitioner' 
+      THEN NEW.raw_user_meta_data->>'clinic_id'::uuid
+      ELSE NULL 
+    END
   );
   RETURN NEW;
 END;

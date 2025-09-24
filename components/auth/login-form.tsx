@@ -39,8 +39,15 @@ export function LoginForm() {
       if (error) {
         toast.error(error.message)
       } else {
-        toast.success("Login successful!")
-        // Redirect will be handled by auth context
+        toast.success("Login successful! Redirecting...")
+        // Give a moment for the profile to be fetched
+        setTimeout(() => {
+          if (profile?.user_type === 'practitioner') {
+            router.push('/practitioner/dashboard')
+          } else if (profile?.user_type === 'patient') {
+            router.push('/patient/dashboard')
+          }
+        }, 1000)
       }
     } catch (error) {
       toast.error("An unexpected error occurred")

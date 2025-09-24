@@ -4,40 +4,40 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Updated color tokens to match Panchakarma healthcare design */
+  /* Updated color tokens to match Panchakarma healthcare design - Green/Blue theme */
   --background: #ffffff;
   --foreground: #374151;
-  --card: #fef2f2;
+  --card: #f0fdf4;
   --card-foreground: #374151;
   --popover: #ffffff;
   --popover-foreground: #374151;
-  --primary: #dc2626;
+  --primary: #10b981;
   --primary-foreground: #ffffff;
-  --secondary: #f59e0b;
-  --secondary-foreground: #374151;
+  --secondary: #3b82f6;
+  --secondary-foreground: #ffffff;
   --muted: #f8fafc;
   --muted-foreground: #374151;
-  --accent: #f59e0b;
+  --accent: #3b82f6;
   --accent-foreground: #ffffff;
-  --destructive: #dc2626;
+  --destructive: #ef4444;
   --destructive-foreground: #ffffff;
   --border: #e5e7eb;
-  --input: #fef2f2;
-  --ring: rgba(220, 38, 38, 0.5);
-  --chart-1: #dc2626;
-  --chart-2: #f59e0b;
+  --input: #f0fdf4;
+  --ring: rgba(16, 185, 129, 0.5);
+  --chart-1: #10b981;
+  --chart-2: #3b82f6;
   --chart-3: #f8fafc;
   --chart-4: #374151;
   --chart-5: #1f2937;
   --radius: 0.5rem;
-  --sidebar: #fef2f2;
+  --sidebar: #f0fdf4;
   --sidebar-foreground: #374151;
-  --sidebar-primary: #dc2626;
+  --sidebar-primary: #10b981;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f59e0b;
-  --sidebar-accent-foreground: #374151;
+  --sidebar-accent: #3b82f6;
+  --sidebar-accent-foreground: #ffffff;
   --sidebar-border: #e5e7eb;
-  --sidebar-ring: rgba(220, 38, 38, 0.5);
+  --sidebar-ring: rgba(16, 185, 129, 0.5);
 }
 
 .dark {
@@ -47,32 +47,32 @@
   --card-foreground: #f9fafb;
   --popover: #374151;
   --popover-foreground: #f9fafb;
-  --primary: #ef4444;
-  --primary-foreground: #ffffff;
-  --secondary: #fbbf24;
+  --primary: #34d399;
+  --primary-foreground: #1f2937;
+  --secondary: #60a5fa;
   --secondary-foreground: #1f2937;
   --muted: #4b5563;
   --muted-foreground: #d1d5db;
-  --accent: #fbbf24;
+  --accent: #60a5fa;
   --accent-foreground: #1f2937;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
   --border: #4b5563;
   --input: #374151;
-  --ring: rgba(239, 68, 68, 0.5);
-  --chart-1: #ef4444;
-  --chart-2: #fbbf24;
+  --ring: rgba(52, 211, 153, 0.5);
+  --chart-1: #34d399;
+  --chart-2: #60a5fa;
   --chart-3: #6b7280;
   --chart-4: #d1d5db;
   --chart-5: #f9fafb;
   --sidebar: #374151;
   --sidebar-foreground: #f9fafb;
-  --sidebar-primary: #ef4444;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #fbbf24;
+  --sidebar-primary: #34d399;
+  --sidebar-primary-foreground: #1f2937;
+  --sidebar-accent: #60a5fa;
   --sidebar-accent-foreground: #1f2937;
   --sidebar-border: #4b5563;
-  --sidebar-ring: rgba(239, 68, 68, 0.5);
+  --sidebar-ring: rgba(52, 211, 153, 0.5);
 }
 
 @theme inline {
