@@ -1,4 +1,5 @@
-import { supabase } from './supabase'
+import { supabase, isSupabaseReady } from './supabase'
+import { MockDataService } from './mock-data-service'
 
 export interface FeedbackData {
   appointmentId: string
@@ -79,6 +80,12 @@ export class FeedbackService {
   }
 
   static async getFeedbackByPatient(patientId: string): Promise<Feedback[]> {
+    // Use mock data for demo accounts
+    if (patientId === 'demo-patient-1' || patientId.startsWith('demo-') || !isSupabaseReady) {
+      console.log('Using mock data for patient feedback, patientId:', patientId)
+      return await MockDataService.getPatientFeedback(patientId)
+    }
+
     const { data, error } = await supabase
       .from('feedback')
       .select(`
@@ -97,6 +104,12 @@ export class FeedbackService {
   }
 
   static async getFeedbackByPractitioner(practitionerId: string): Promise<Feedback[]> {
+    // Use mock data for demo accounts
+    if (practitionerId === 'demo-practitioner-1' || practitionerId.startsWith('demo-') || !isSupabaseReady) {
+      console.log('Using mock data for practitioner feedback, practitionerId:', practitionerId)
+      return await MockDataService.getFeedback(practitionerId)
+    }
+
     const { data, error } = await supabase
       .from('feedback')
       .select(`
@@ -149,6 +162,12 @@ export class FeedbackService {
   }
 
   static async getFeedbackStats(practitionerId: string) {
+    // Use mock data for demo accounts
+    if (practitionerId === 'demo-practitioner-1' || practitionerId.startsWith('demo-') || !isSupabaseReady) {
+      console.log('Using mock data for feedback stats, practitionerId:', practitionerId)
+      return await MockDataService.getFeedbackStats(practitionerId)
+    }
+
     const { data, error } = await supabase
       .from('feedback')
       .select(`

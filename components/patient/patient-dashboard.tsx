@@ -13,10 +13,12 @@ import { AppointmentService, Appointment } from "@/lib/appointment-service"
 import { MockDataService } from "@/lib/mock-data-service"
 import { isSupabaseReady } from "@/lib/supabase"
 import { motion, AnimatePresence } from "framer-motion"
+import { useRouter } from "next/navigation"
 
 export function PatientDashboard() {
   const [activeTab, setActiveTab] = useState("overview")
   const { profile, signOut } = useAuth()
+  const router = useRouter()
   const [upcomingAppointments, setUpcomingAppointments] = useState<Appointment[]>([])
   const [therapyHistory, setTherapyHistory] = useState<any[]>([])
   const [stats, setStats] = useState({
@@ -27,8 +29,19 @@ export function PatientDashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    console.log('Patient dashboard useEffect triggered, profile:', profile)
     if (profile) {
+      console.log('Profile exists, loading dashboard data')
+      console.log('Profile details:', {
+        id: profile.id,
+        email: profile.email,
+        user_type: profile.user_type,
+        first_name: profile.first_name,
+        last_name: profile.last_name
+      })
       loadDashboardData()
+    } else {
+      console.log('No profile found')
     }
   }, [profile])
 
@@ -39,29 +52,40 @@ export function PatientDashboard() {
     try {
       let upcomingData, historyData, statsData
       
-      if (isSupabaseReady) {
-        // Use real Supabase data
-        [upcomingData, historyData, statsData] = await Promise.all([
-          AppointmentService.getUpcomingAppointments(profile.id, 'patient', 5),
-          AppointmentService.getTherapyHistory(profile.id),
-          AppointmentService.getAppointmentStats(profile.id, 'patient')
-        ])
-      } else {
-        // Use mock data
-        [upcomingData, historyData, statsData] = await Promise.all([
-          MockDataService.getUpcomingAppointments(profile.id, 'patient', 5),
-          MockDataService.getTherapyHistory(profile.id),
-          MockDataService.getPatientStats(profile.id)
-        ])
+      console.log('Loading dashboard data for profile:', profile)
+      console.log('isSupabaseReady:', isSupabaseReady)
+      console.log('Profile ID:', profile.id)
+      console.log('Profile type:', profile.user_type)
+      
+      // Use the actual profile ID for mock data
+      const patientId = profile.id
+      console.log('Using mock data for patient ID:', patientId)
+      console.log('Profile ID:', profile.id, 'Profile email:', profile.email)
+      
+      [upcomingData, historyData, statsData] = await Promise.all([
+        MockDataService.getUpcomingAppointments(patientId, 'patient', 5),
+        MockDataService.getTherapyHistory(patientId),
+        MockDataService.getPatientStats(patientId)
+      ])
+      
+      console.log('Loaded data:', { upcomingData, historyData, statsData })
+      console.log('upcomingData type:', typeof upcomingData, 'length:', upcomingData?.length)
+      console.log('historyData type:', typeof historyData, 'length:', historyData?.length)
+      console.log('statsData type:', typeof statsData, 'content:', statsData)
+      
+      const finalStats = {
+        upcomingSessions: statsData?.upcomingSessions || statsData?.upcoming || 0,
+        totalSessions: statsData?.totalSessions || statsData?.total || 0,
+        activeTherapies: statsData?.activeTherapies || historyData?.length || 0
       }
+      
+      console.log('Setting final stats:', finalStats)
+      console.log('Setting upcoming appointments:', upcomingData?.length || 0)
+      console.log('Setting therapy history:', historyData?.length || 0)
       
       setUpcomingAppointments(upcomingData || [])
       setTherapyHistory(historyData || [])
-      setStats({
-        upcomingSessions: statsData.upcomingSessions || statsData.upcoming,
-        totalSessions: statsData.totalSessions || statsData.total,
-        activeTherapies: statsData.activeTherapies || historyData?.length || 0
-      })
+      setStats(finalStats)
     } catch (error) {
       console.error('Error loading dashboard data:', error)
     } finally {
@@ -100,7 +124,7 @@ export function PatientDashboard() {
                 <Bell className="h-4 w-4 mr-2" />
                 Notifications
               </Button>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => router.push('/profile')}>
                 Profile
               </Button>
               <Button variant="outline" size="sm" onClick={signOut} className="hover:bg-destructive/10 hover:text-destructive hover:border-destructive">

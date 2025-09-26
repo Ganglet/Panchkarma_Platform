@@ -20,10 +20,13 @@ import { AppointmentService, Appointment } from "@/lib/appointment-service"
 import { MockDataService } from "@/lib/mock-data-service"
 import { isSupabaseReady } from "@/lib/supabase"
 import { motion, AnimatePresence } from "framer-motion"
+import { LogOut } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 export function PractitionerDashboard() {
   const [activeTab, setActiveTab] = useState("overview")
-  const { profile } = useAuth()
+  const { profile, signOut } = useAuth()
+  const router = useRouter()
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([])
   const [stats, setStats] = useState({
     todayPatients: 0,
@@ -46,28 +49,44 @@ export function PractitionerDashboard() {
     try {
       let statsData, todayData
       
-      if (isSupabaseReady) {
+      console.log('Loading practitioner dashboard data for profile:', profile)
+      console.log('isSupabaseReady:', isSupabaseReady)
+      console.log('Profile ID:', profile.id)
+      console.log('Profile type:', profile.user_type)
+      
+      // Always use mock data for demo accounts
+      if (profile.id === 'demo-practitioner-1' || profile.id.startsWith('demo-') || !isSupabaseReady) {
+        const practitionerId = profile.id
+        console.log('Using mock data for practitioner ID:', practitionerId)
+        
+        const [statsResult, todayResult] = await Promise.all([
+          MockDataService.getPractitionerStats(practitionerId),
+          MockDataService.getUpcomingAppointments(practitionerId, 'practitioner', 5)
+        ])
+        statsData = statsResult
+        todayData = todayResult
+      } else {
         // Use real Supabase data
         [statsData, todayData] = await Promise.all([
           PractitionerService.getPractitionerStats(profile.id),
           loadTodayAppointments()
         ])
-      } else {
-        // Use mock data
-        [statsData, todayData] = await Promise.all([
-          MockDataService.getPractitionerStats(profile.id),
-          MockDataService.getUpcomingAppointments(profile.id, 'practitioner', 5)
-        ])
       }
       
-      setStats({
-        todayPatients: statsData.todayAppointments,
-        weekPatients: statsData.weekAppointments,
-        totalPatients: statsData.totalPatients,
-        completionRate: statsData.completionRate
-      })
+      console.log('Loaded practitioner data:', { statsData, todayData })
       
-      setTodayAppointments(todayData)
+      const finalStats = {
+        todayPatients: statsData?.todayAppointments || 0,
+        weekPatients: statsData?.weekAppointments || 0,
+        totalPatients: statsData?.totalPatients || 0,
+        completionRate: statsData?.completionRate || 0
+      }
+      
+      console.log('Setting final practitioner stats:', finalStats)
+      console.log('Setting today appointments:', todayData?.length || 0)
+      
+      setStats(finalStats)
+      setTodayAppointments(todayData || [])
     } catch (error) {
       console.error('Error loading dashboard data:', error)
     } finally {
@@ -178,9 +197,13 @@ export function PractitionerDashboard() {
                 <Bell className="h-4 w-4 mr-2" />
                 Alerts
               </Button>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => router.push('/profile')}>
                 <Settings className="h-4 w-4 mr-2" />
-                Settings
+                Profile
+              </Button>
+              <Button variant="outline" size="sm" onClick={signOut} className="hover:bg-destructive/10 hover:text-destructive hover:border-destructive">
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
               </Button>
             </motion.div>
           </div>

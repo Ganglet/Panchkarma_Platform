@@ -70,6 +70,13 @@ export function TherapyProgress() {
     }
   }, [profile])
 
+  // Auto-select first progress item when data loads
+  useEffect(() => {
+    if (progressData.length > 0 && !selectedPatient) {
+      setSelectedPatient(progressData[0].id)
+    }
+  }, [progressData, selectedPatient])
+
   const loadProgressData = async () => {
     if (!profile) return
     

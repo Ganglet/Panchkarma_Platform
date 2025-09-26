@@ -251,8 +251,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Check for demo credentials first, but only for specific demo accounts
     const demoCredentials = {
-      'patient@demo.com': { password: 'demo123', userType: 'patient', firstName: 'John', lastName: 'Doe' },
-      'practitioner@demo.com': { password: 'demo123', userType: 'practitioner', firstName: 'Dr. Sarah', lastName: 'Johnson' },
+      'patient@demo.com': { password: 'demo123', userType: 'patient', firstName: 'Dummy', lastName: 'Patient' },
+      'practitioner@demo.com': { password: 'demo123', userType: 'practitioner', firstName: 'Dummy', lastName: 'Practitioner' },
       'admin@demo.com': { password: 'demo123', userType: 'admin', firstName: 'Admin', lastName: 'User' },
       'patient@example.com': { password: 'demo123', userType: 'patient', firstName: 'Demo', lastName: 'Patient' }
     }

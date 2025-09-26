@@ -1,4 +1,5 @@
-import { supabase } from './supabase'
+import { supabase, isSupabaseReady } from './supabase'
+import { MockDataService } from './mock-data-service'
 
 export interface TherapyProgress {
   id: string
@@ -69,6 +70,12 @@ export class ProgressService {
   }
 
   static async getTherapyProgress(patientId: string): Promise<TherapyProgress[]> {
+    // Use mock data for demo accounts
+    if (patientId === 'demo-patient-1' || patientId.startsWith('demo-') || !isSupabaseReady) {
+      console.log('Using mock data for therapy progress, patientId:', patientId)
+      return await MockDataService.getTherapyProgress(patientId)
+    }
+
     const { data, error } = await supabase
       .from('therapy_progress')
       .select(`
@@ -88,6 +95,12 @@ export class ProgressService {
   }
 
   static async getTherapyProgressByPractitioner(practitionerId: string): Promise<TherapyProgress[]> {
+    // Use mock data for demo accounts
+    if (practitionerId === 'demo-practitioner-1' || practitionerId.startsWith('demo-') || !isSupabaseReady) {
+      console.log('Using mock data for practitioner therapy progress, practitionerId:', practitionerId)
+      return await MockDataService.getTherapyProgressByPractitioner(practitionerId)
+    }
+
     const { data, error } = await supabase
       .from('therapy_progress')
       .select(`
@@ -145,6 +158,12 @@ export class ProgressService {
   }
 
   static async getTreatmentPlans(patientId: string): Promise<TreatmentPlan[]> {
+    // Use mock data for demo accounts
+    if (patientId === 'demo-patient-1' || patientId.startsWith('demo-') || !isSupabaseReady) {
+      console.log('Using mock data for treatment plans, patientId:', patientId)
+      return await MockDataService.getTreatmentPlans(patientId)
+    }
+
     const { data, error } = await supabase
       .from('treatment_plans')
       .select('*')
@@ -160,6 +179,12 @@ export class ProgressService {
   }
 
   static async getTreatmentPlansByPractitioner(practitionerId: string): Promise<TreatmentPlan[]> {
+    // Use mock data for demo accounts
+    if (practitionerId === 'demo-practitioner-1' || practitionerId.startsWith('demo-') || !isSupabaseReady) {
+      console.log('Using mock data for practitioner treatment plans, practitionerId:', practitionerId)
+      return await MockDataService.getTreatmentPlansByPractitioner(practitionerId)
+    }
+
     const { data, error } = await supabase
       .from('treatment_plans')
       .select('*')

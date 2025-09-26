@@ -362,9 +362,123 @@ export function AdminDashboard() {
                   <CardDescription>Manage all system users and their permissions</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-8">
-                    <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">User management interface coming soon...</p>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm">
+                          <Users className="h-4 w-4 mr-2" />
+                          All Users
+                        </Button>
+                        <Button variant="outline" size="sm">
+                          <UserCheck className="h-4 w-4 mr-2" />
+                          Practitioners
+                        </Button>
+                        <Button variant="outline" size="sm">
+                          <Users className="h-4 w-4 mr-2" />
+                          Patients
+                        </Button>
+                      </div>
+                      <Button size="sm">
+                        <Users className="h-4 w-4 mr-2" />
+                        Add User
+                      </Button>
+                    </div>
+                    
+                    <div className="grid gap-4">
+                      {[
+                        { id: 1, name: 'John Doe', email: 'patient@demo.com', type: 'Patient', status: 'Active', lastLogin: '2 hours ago' },
+                        { id: 2, name: 'Dr. Sarah Johnson', email: 'practitioner@demo.com', type: 'Practitioner', status: 'Active', lastLogin: '1 hour ago' },
+                        { id: 3, name: 'Emma Wilson', email: 'emma.wilson@email.com', type: 'Patient', status: 'Active', lastLogin: '3 hours ago' },
+                        { id: 4, name: 'Michael Chen', email: 'michael.chen@email.com', type: 'Patient', status: 'Inactive', lastLogin: '2 days ago' },
+                        { id: 5, name: 'Sarah Davis', email: 'sarah.davis@email.com', type: 'Patient', status: 'Active', lastLogin: '5 hours ago' }
+                      ].map((user) => (
+                        <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                              <Users className="h-5 w-5 text-primary" />
+                            </div>
+                            <div>
+                              <h4 className="font-semibold">{user.name}</h4>
+                              <p className="text-sm text-muted-foreground">{user.email}</p>
+                              <p className="text-xs text-muted-foreground">Last login: {user.lastLogin}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Badge variant={user.status === 'Active' ? 'default' : 'secondary'}>
+                              {user.status}
+                            </Badge>
+                            <Badge variant="outline">{user.type}</Badge>
+                            <Button variant="outline" size="sm">Edit</Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          {activeTab === "practitioners" && (
+            <motion.div
+              key="practitioners"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6"
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle>Practitioner Management</CardTitle>
+                  <CardDescription>Manage practitioners and their specializations</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm">
+                          <UserCheck className="h-4 w-4 mr-2" />
+                          All Practitioners
+                        </Button>
+                        <Button variant="outline" size="sm">
+                          <Building className="h-4 w-4 mr-2" />
+                          By Clinic
+                        </Button>
+                      </div>
+                      <Button size="sm">
+                        <UserCheck className="h-4 w-4 mr-2" />
+                        Add Practitioner
+                      </Button>
+                    </div>
+                    
+                    <div className="grid gap-4">
+                      {[
+                        { id: 1, name: 'Dr. Sarah Johnson', email: 'practitioner@demo.com', specialization: 'Panchakarma Therapy', clinic: 'Ayur Wellness Center', patients: 24, rating: 4.9 },
+                        { id: 2, name: 'Dr. Michael Chen', email: 'michael.chen@clinic.com', specialization: 'Ayurvedic Medicine', clinic: 'Traditional Healing Clinic', patients: 18, rating: 4.8 },
+                        { id: 3, name: 'Dr. Priya Sharma', email: 'priya.sharma@clinic.com', specialization: 'Yoga Therapy', clinic: 'Panchakarma Specialty Center', patients: 31, rating: 4.7 }
+                      ].map((practitioner) => (
+                        <div key={practitioner.id} className="flex items-center justify-between p-4 border rounded-lg">
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-secondary/10 rounded-full flex items-center justify-center">
+                              <UserCheck className="h-5 w-5 text-secondary" />
+                            </div>
+                            <div>
+                              <h4 className="font-semibold">{practitioner.name}</h4>
+                              <p className="text-sm text-muted-foreground">{practitioner.email}</p>
+                              <p className="text-xs text-muted-foreground">{practitioner.specialization} • {practitioner.clinic}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <p className="text-sm font-medium">{practitioner.patients} patients</p>
+                              <p className="text-xs text-muted-foreground">⭐ {practitioner.rating}</p>
+                            </div>
+                            <Button variant="outline" size="sm">View Details</Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -386,9 +500,292 @@ export function AdminDashboard() {
                   <CardDescription>Configure system-wide settings and preferences</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-8">
-                    <Settings className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">System settings interface coming soon...</p>
+                  <div className="space-y-6">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <h4 className="font-medium">System Configuration</h4>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm">Maintenance Mode</span>
+                            <Button variant="outline" size="sm">Disabled</Button>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm">Auto Backup</span>
+                            <Button variant="outline" size="sm">Enabled</Button>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm">Email Notifications</span>
+                            <Button variant="outline" size="sm">Enabled</Button>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <h4 className="font-medium">Database Status</h4>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm">Connection</span>
+                            <Badge variant="default">Connected</Badge>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm">Storage Used</span>
+                            <span className="text-sm">2.3 GB / 10 GB</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm">Last Backup</span>
+                            <span className="text-sm">2 hours ago</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          {activeTab === "appointments" && (
+            <motion.div
+              key="appointments"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6"
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle>Appointment Management</CardTitle>
+                  <CardDescription>Monitor and manage all system appointments</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm">
+                          <Calendar className="h-4 w-4 mr-2" />
+                          Today
+                        </Button>
+                        <Button variant="outline" size="sm">
+                          <Calendar className="h-4 w-4 mr-2" />
+                          This Week
+                        </Button>
+                        <Button variant="outline" size="sm">
+                          <Calendar className="h-4 w-4 mr-2" />
+                          All
+                        </Button>
+                      </div>
+                      <Button size="sm">
+                        <Calendar className="h-4 w-4 mr-2" />
+                        Schedule Appointment
+                      </Button>
+                    </div>
+                    
+                    <div className="grid gap-4">
+                      {[
+                        { id: 1, patient: 'John Doe', practitioner: 'Dr. Sarah Johnson', therapy: 'Abhyanga', time: '2:00 PM', status: 'Scheduled', date: 'Today' },
+                        { id: 2, patient: 'Emma Wilson', practitioner: 'Dr. Sarah Johnson', therapy: 'Panchakarma', time: '3:00 PM', status: 'Scheduled', date: 'Today' },
+                        { id: 3, patient: 'Michael Chen', practitioner: 'Dr. Sarah Johnson', therapy: 'Abhyanga', time: '10:00 AM', status: 'Completed', date: 'Yesterday' },
+                        { id: 4, patient: 'Sarah Davis', practitioner: 'Dr. Sarah Johnson', therapy: 'Shirodhara', time: '5:00 PM', status: 'Confirmed', date: 'Today' }
+                      ].map((appointment) => (
+                        <div key={appointment.id} className="flex items-center justify-between p-4 border rounded-lg">
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-accent/10 rounded-full flex items-center justify-center">
+                              <Calendar className="h-5 w-5 text-accent" />
+                            </div>
+                            <div>
+                              <h4 className="font-semibold">{appointment.patient} → {appointment.practitioner}</h4>
+                              <p className="text-sm text-muted-foreground">{appointment.therapy}</p>
+                              <p className="text-xs text-muted-foreground">{appointment.date} at {appointment.time}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Badge variant={
+                              appointment.status === 'Completed' ? 'default' :
+                              appointment.status === 'Scheduled' ? 'secondary' :
+                              appointment.status === 'Confirmed' ? 'outline' : 'secondary'
+                            }>
+                              {appointment.status}
+                            </Badge>
+                            <Button variant="outline" size="sm">View</Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          {activeTab === "analytics" && (
+            <motion.div
+              key="analytics"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6"
+            >
+              <div className="grid gap-6 md:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>User Growth</CardTitle>
+                    <CardDescription>Monthly user registration trends</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {[
+                        { month: 'January', users: 45, growth: '+12%' },
+                        { month: 'February', users: 52, growth: '+15%' },
+                        { month: 'March', users: 61, growth: '+17%' },
+                        { month: 'April', users: 73, growth: '+20%' },
+                        { month: 'May', users: 89, growth: '+22%' },
+                        { month: 'June', users: 108, growth: '+21%' }
+                      ].map((data) => (
+                        <div key={data.month} className="flex items-center justify-between">
+                          <span className="text-sm font-medium">{data.month}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">{data.users} users</span>
+                            <Badge variant="outline" className="text-green-600">{data.growth}</Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Popular Therapies</CardTitle>
+                    <CardDescription>Most requested therapy types</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {[
+                        { therapy: 'Abhyanga', bookings: 45, percentage: 35 },
+                        { therapy: 'Shirodhara', bookings: 32, percentage: 25 },
+                        { therapy: 'Panchakarma', bookings: 28, percentage: 22 },
+                        { therapy: 'Basti', bookings: 15, percentage: 12 },
+                        { therapy: 'Nasya', bookings: 8, percentage: 6 }
+                      ].map((data) => (
+                        <div key={data.therapy} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">{data.therapy}</span>
+                            <span className="text-sm text-muted-foreground">{data.bookings} bookings</span>
+                          </div>
+                          <div className="w-full bg-muted rounded-full h-2">
+                            <div 
+                              className="bg-primary h-2 rounded-full" 
+                              style={{ width: `${data.percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>System Performance</CardTitle>
+                  <CardDescription>Key performance indicators and metrics</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-4">
+                    <div className="text-center p-4 border rounded-lg">
+                      <div className="text-2xl font-bold text-green-600">98.5%</div>
+                      <p className="text-sm text-muted-foreground">Uptime</p>
+                    </div>
+                    <div className="text-center p-4 border rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600">1.2s</div>
+                      <p className="text-sm text-muted-foreground">Avg Response Time</p>
+                    </div>
+                    <div className="text-center p-4 border rounded-lg">
+                      <div className="text-2xl font-bold text-purple-600">4.8/5</div>
+                      <p className="text-sm text-muted-foreground">User Satisfaction</p>
+                    </div>
+                    <div className="text-center p-4 border rounded-lg">
+                      <div className="text-2xl font-bold text-orange-600">156</div>
+                      <p className="text-sm text-muted-foreground">Active Users</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          {activeTab === "alerts" && (
+            <motion.div
+              key="alerts"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6"
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle>System Alerts & Notifications</CardTitle>
+                  <CardDescription>Monitor system alerts and manage notifications</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm">
+                          <AlertTriangle className="h-4 w-4 mr-2" />
+                          Critical
+                        </Button>
+                        <Button variant="outline" size="sm">
+                          <Bell className="h-4 w-4 mr-2" />
+                          All Alerts
+                        </Button>
+                        <Button variant="outline" size="sm">
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Resolved
+                        </Button>
+                      </div>
+                      <Button size="sm">
+                        <Bell className="h-4 w-4 mr-2" />
+                        Create Alert
+                      </Button>
+                    </div>
+                    
+                    <div className="grid gap-4">
+                      {[
+                        { id: 1, type: 'warning', title: 'High Server Load', message: 'Server CPU usage is above 80%', time: '2 hours ago', status: 'Active' },
+                        { id: 2, type: 'info', title: 'Backup Completed', message: 'Daily backup completed successfully', time: '4 hours ago', status: 'Resolved' },
+                        { id: 3, type: 'success', title: 'New Registration', message: 'New practitioner registered successfully', time: '6 hours ago', status: 'Resolved' },
+                        { id: 4, type: 'warning', title: 'Storage Warning', message: 'Database storage is 85% full', time: '8 hours ago', status: 'Active' }
+                      ].map((alert) => (
+                        <div key={alert.id} className="flex items-center justify-between p-4 border rounded-lg">
+                          <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              alert.type === 'warning' ? 'bg-yellow-100' :
+                              alert.type === 'info' ? 'bg-blue-100' :
+                              alert.type === 'success' ? 'bg-green-100' : 'bg-gray-100'
+                            }`}>
+                              {alert.type === 'warning' ? <AlertTriangle className="h-5 w-5 text-yellow-600" /> :
+                               alert.type === 'info' ? <Bell className="h-5 w-5 text-blue-600" /> :
+                               alert.type === 'success' ? <CheckCircle className="h-5 w-5 text-green-600" /> :
+                               <Bell className="h-5 w-5 text-gray-600" />}
+                            </div>
+                            <div>
+                              <h4 className="font-semibold">{alert.title}</h4>
+                              <p className="text-sm text-muted-foreground">{alert.message}</p>
+                              <p className="text-xs text-muted-foreground">{alert.time}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Badge variant={alert.status === 'Active' ? 'destructive' : 'default'}>
+                              {alert.status}
+                            </Badge>
+                            <Button variant="outline" size="sm">View</Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
