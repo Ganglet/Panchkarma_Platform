@@ -82,3 +82,4 @@ pnpm dev
 5. Test the application
 
 The platform is now fully functional with all required features implemented!
+

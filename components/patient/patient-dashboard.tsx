@@ -1,58 +1,101 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, User, Bell, Activity, BookOpen, LogOut } from "lucide-react"
+import { Calendar, User, Bell, Activity, BookOpen, LogOut, Sparkles, TrendingUp, Clock, CheckCircle, Loader2 } from "lucide-react"
 import { AppointmentCalendar } from "@/components/scheduling/appointment-calendar"
 import { TherapyProgress } from "@/components/progress/therapy-progress"
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import { useAuth } from "@/contexts/auth-context"
-import { motion } from "framer-motion"
+import { AppointmentService, Appointment } from "@/lib/appointment-service"
+import { MockDataService } from "@/lib/mock-data-service"
+import { isSupabaseReady } from "@/lib/supabase"
+import { motion, AnimatePresence } from "framer-motion"
 
 export function PatientDashboard() {
   const [activeTab, setActiveTab] = useState("overview")
   const { profile, signOut } = useAuth()
+  const [upcomingAppointments, setUpcomingAppointments] = useState<Appointment[]>([])
+  const [therapyHistory, setTherapyHistory] = useState<any[]>([])
+  const [stats, setStats] = useState({
+    upcomingSessions: 0,
+    totalSessions: 0,
+    activeTherapies: 0
+  })
+  const [loading, setLoading] = useState(true)
 
-  const upcomingAppointments = [
-    {
-      id: 1,
-      therapy: "Abhyanga",
-      date: "2024-01-15",
-      time: "10:00 AM",
-      practitioner: "Dr. Priya Sharma",
-      status: "confirmed",
-    },
-    {
-      id: 2,
-      therapy: "Shirodhara",
-      date: "2024-01-17",
-      time: "2:00 PM",
-      practitioner: "Dr. Raj Patel",
-      status: "pending",
-    },
-  ]
+  useEffect(() => {
+    if (profile) {
+      loadDashboardData()
+    }
+  }, [profile])
 
-  const therapyHistory = [
-    { therapy: "Abhyanga", sessions: 8, completed: 6 },
-    { therapy: "Shirodhara", sessions: 5, completed: 3 },
-    { therapy: "Panchakarma Detox", sessions: 21, completed: 12 },
-  ]
+  const loadDashboardData = async () => {
+    if (!profile) return
+    
+    setLoading(true)
+    try {
+      let upcomingData, historyData, statsData
+      
+      if (isSupabaseReady) {
+        // Use real Supabase data
+        [upcomingData, historyData, statsData] = await Promise.all([
+          AppointmentService.getUpcomingAppointments(profile.id, 'patient', 5),
+          AppointmentService.getTherapyHistory(profile.id),
+          AppointmentService.getAppointmentStats(profile.id, 'patient')
+        ])
+      } else {
+        // Use mock data
+        [upcomingData, historyData, statsData] = await Promise.all([
+          MockDataService.getUpcomingAppointments(profile.id, 'patient', 5),
+          MockDataService.getTherapyHistory(profile.id),
+          MockDataService.getPatientStats(profile.id)
+        ])
+      }
+      
+      setUpcomingAppointments(upcomingData || [])
+      setTherapyHistory(historyData || [])
+      setStats({
+        upcomingSessions: statsData.upcomingSessions || statsData.upcoming,
+        totalSessions: statsData.totalSessions || statsData.total,
+        activeTherapies: statsData.activeTherapies || historyData?.length || 0
+      })
+    } catch (error) {
+      console.error('Error loading dashboard data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50/30 via-white to-blue-50/30">
       {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
+      <motion.header 
+        className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-40"
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+      >
+        <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-primary">Patient Dashboard</h1>
-              <p className="text-muted-foreground">
-                Welcome back, {profile?.first_name} {profile?.last_name}
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+            >
+              <h1 className="text-3xl font-bold gradient-text">Patient Dashboard</h1>
+              <p className="text-muted-foreground text-lg">
+                Welcome back, <span className="font-semibold text-primary">{profile?.first_name} {profile?.last_name}</span>
               </p>
-            </div>
-            <div className="flex items-center gap-4">
+            </motion.div>
+            <motion.div 
+              className="flex items-center gap-3"
+              initial={{ opacity: 0, x: 30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+            >
               <Button variant="outline" size="sm">
                 <Bell className="h-4 w-4 mr-2" />
                 Notifications
@@ -60,37 +103,50 @@ export function PatientDashboard() {
               <Button variant="outline" size="sm">
                 Profile
               </Button>
-              <Button variant="outline" size="sm" onClick={signOut}>
+              <Button variant="outline" size="sm" onClick={signOut} className="hover:bg-destructive/10 hover:text-destructive hover:border-destructive">
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
               </Button>
-            </div>
+            </motion.div>
           </div>
         </div>
-      </header>
+      </motion.header>
 
       {/* Navigation */}
-      <nav className="border-b">
+      <nav className="border-b bg-card/50 backdrop-blur-sm">
         <div className="container mx-auto px-4">
-          <div className="flex space-x-8">
+          <div className="flex space-x-2">
             {[
               { id: "overview", label: "Overview", icon: Activity },
               { id: "appointments", label: "Appointments", icon: Calendar },
               { id: "progress", label: "Progress", icon: BookOpen },
               { id: "notifications", label: "Notifications", icon: Bell },
-            ].map((tab) => (
-              <button
+            ].map((tab, index) => (
+              <motion.button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 py-4 px-2 border-b-2 transition-colors ${
+                className={`flex items-center gap-2 py-4 px-6 border-b-2 transition-all duration-300 rounded-t-xl relative group ${
                   activeTab === tab.id
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
+                    ? "border-primary text-primary bg-primary/5"
+                    : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 }`}
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               >
-                <tab.icon className="h-4 w-4" />
-                {tab.label}
-              </button>
+                <tab.icon className={`h-4 w-4 transition-transform duration-300 ${activeTab === tab.id ? 'scale-110' : 'group-hover:scale-110'}`} />
+                <span className="font-medium">{tab.label}</span>
+                {activeTab === tab.id && (
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent rounded-t-xl"
+                    layoutId="activeTab"
+                    initial={false}
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  />
+                )}
+              </motion.button>
             ))}
           </div>
         </div>
@@ -98,143 +154,294 @@ export function PatientDashboard() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        {activeTab === "overview" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Quick Stats */}
-            <div className="lg:col-span-2 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="p-2 bg-primary/10 rounded-lg">
-                        <Calendar className="h-6 w-6 text-primary" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold">2</p>
-                        <p className="text-sm text-muted-foreground">Upcoming Sessions</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+        <AnimatePresence mode="wait">
+          {activeTab === "overview" && (
+            <motion.div 
+              key="overview"
+              className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.5 }}
+            >
+              {/* Quick Stats */}
+              <div className="lg:col-span-2 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5, delay: 0.1 }}
+                  >
+                    <Card className="group hover:shadow-glow transition-all duration-300">
+                      <CardContent className="p-6">
+                        <div className="flex items-center gap-4">
+                          <motion.div 
+                            className="p-3 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300"
+                            whileHover={{ rotate: 5 }}
+                          >
+                            <Calendar className="h-6 w-6 text-white" />
+                          </motion.div>
+                          <div>
+                            <p className="text-3xl font-bold gradient-text">{loading ? <Loader2 className="h-8 w-8 animate-spin" /> : stats.upcomingSessions}</p>
+                            <p className="text-sm text-muted-foreground font-medium">Upcoming Sessions</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
 
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="p-2 bg-secondary/10 rounded-lg">
-                        <Activity className="h-6 w-6 text-secondary" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold">21</p>
-                        <p className="text-sm text-muted-foreground">Total Sessions</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5, delay: 0.2 }}
+                  >
+                    <Card className="group hover:shadow-glow-blue transition-all duration-300">
+                      <CardContent className="p-6">
+                        <div className="flex items-center gap-4">
+                          <motion.div 
+                            className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300"
+                            whileHover={{ rotate: 5 }}
+                          >
+                            <TrendingUp className="h-6 w-6 text-white" />
+                          </motion.div>
+                          <div>
+                            <p className="text-3xl font-bold gradient-text-secondary">{loading ? <Loader2 className="h-8 w-8 animate-spin" /> : stats.totalSessions}</p>
+                            <p className="text-sm text-muted-foreground font-medium">Total Sessions</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
 
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="p-2 bg-accent/10 rounded-lg">
-                        <BookOpen className="h-6 w-6 text-accent" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold">3</p>
-                        <p className="text-sm text-muted-foreground">Active Therapies</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5, delay: 0.3 }}
+                  >
+                    <Card className="group hover:shadow-lg transition-all duration-300">
+                      <CardContent className="p-6">
+                        <div className="flex items-center gap-4">
+                          <motion.div 
+                            className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300"
+                            whileHover={{ rotate: 5 }}
+                          >
+                            <CheckCircle className="h-6 w-6 text-white" />
+                          </motion.div>
+                          <div>
+                            <p className="text-3xl font-bold text-purple-600">{loading ? <Loader2 className="h-8 w-8 animate-spin" /> : stats.activeTherapies}</p>
+                            <p className="text-sm text-muted-foreground font-medium">Active Therapies</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
               </div>
 
-              {/* Upcoming Appointments */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Upcoming Appointments</CardTitle>
-                  <CardDescription>Your scheduled therapy sessions</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {upcomingAppointments.map((appointment) => (
-                      <div key={appointment.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex items-center gap-4">
-                          <div className="p-2 bg-primary/10 rounded-lg">
-                            <User className="h-5 w-5 text-primary" />
+                {/* Upcoming Appointments */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.4 }}
+                >
+                  <Card className="hover:shadow-xl transition-all duration-300">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                        Upcoming Appointments
+                      </CardTitle>
+                      <CardDescription>Your scheduled therapy sessions</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {loading ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin" />
+                            <span className="ml-2">Loading appointments...</span>
                           </div>
-                          <div>
-                            <h4 className="font-semibold">{appointment.therapy}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              {appointment.date} at {appointment.time}
-                            </p>
-                            <p className="text-sm text-muted-foreground">with {appointment.practitioner}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={appointment.status === "confirmed" ? "default" : "secondary"}>
-                            {appointment.status}
-                          </Badge>
-                          <Button variant="outline" size="sm">
-                            Reschedule
-                          </Button>
-                        </div>
+                        ) : upcomingAppointments.length > 0 ? (
+                          upcomingAppointments.map((appointment, index) => {
+                            const aptDate = new Date(appointment.appointment_date)
+                            const dateStr = aptDate.toLocaleDateString()
+                            const timeStr = aptDate.toLocaleTimeString('en-US', { 
+                              hour: '2-digit', 
+                              minute: '2-digit',
+                              hour12: true 
+                            })
+                            const practitionerName = appointment.practitioners ? 
+                              `Dr. ${appointment.practitioners.first_name} ${appointment.practitioners.last_name}` : 
+                              'Unknown Practitioner'
+                            
+                            return (
+                              <motion.div 
+                                key={appointment.id} 
+                                className="flex items-center justify-between p-4 border border-border/50 rounded-xl hover:border-primary/30 transition-all duration-300 group"
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ duration: 0.5, delay: 0.5 + index * 0.1 }}
+                                whileHover={{ scale: 1.02 }}
+                              >
+                                <div className="flex items-center gap-4">
+                                  <motion.div 
+                                    className="p-3 bg-gradient-to-br from-primary/20 to-primary/10 rounded-xl group-hover:scale-110 transition-transform duration-300"
+                                    whileHover={{ rotate: 5 }}
+                                  >
+                                    <User className="h-5 w-5 text-primary" />
+                                  </motion.div>
+                                  <div>
+                                    <h4 className="font-semibold text-lg">{appointment.therapy}</h4>
+                                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                                      <Clock className="h-3 w-3" />
+                                      {dateStr} at {timeStr}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">with {practitionerName}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Badge 
+                                    variant={appointment.status === "confirmed" ? "default" : "secondary"}
+                                    className="px-3 py-1"
+                                  >
+                                    {appointment.status.replace('_', ' ')}
+                                  </Badge>
+                                  <Button variant="outline" size="sm">
+                                    Reschedule
+                                  </Button>
+                                </div>
+                              </motion.div>
+                            )
+                          })
+                        ) : (
+                          <p className="text-muted-foreground text-center py-8">No upcoming appointments</p>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
+                </motion.div>
             </div>
 
-            {/* Therapy Progress */}
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Therapy Progress</CardTitle>
-                  <CardDescription>Your current treatment progress</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {therapyHistory.map((therapy, index) => (
-                      <div key={index} className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="font-medium">{therapy.therapy}</span>
-                          <span className="text-muted-foreground">
-                            {therapy.completed}/{therapy.sessions}
-                          </span>
-                        </div>
-                        <div className="w-full bg-muted rounded-full h-2">
-                          <div
-                            className="bg-primary h-2 rounded-full transition-all"
-                            style={{ width: `${(therapy.completed / therapy.sessions) * 100}%` }}
-                          />
-                        </div>
+              {/* Therapy Progress */}
+              <div className="space-y-6">
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5, delay: 0.6 }}
+                >
+                  <Card className="hover:shadow-xl transition-all duration-300">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Activity className="h-5 w-5 text-primary" />
+                        Therapy Progress
+                      </CardTitle>
+                      <CardDescription>Your current treatment progress</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-6">
+                        {loading ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin" />
+                            <span className="ml-2">Loading therapy history...</span>
+                          </div>
+                        ) : therapyHistory.length > 0 ? (
+                          therapyHistory.map((therapy, index) => (
+                            <motion.div 
+                              key={index} 
+                              className="space-y-3"
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.5, delay: 0.7 + index * 0.1 }}
+                            >
+                              <div className="flex justify-between items-center">
+                                <span className="font-semibold text-base">{therapy.therapy}</span>
+                                <span className="text-sm text-muted-foreground bg-muted/50 px-2 py-1 rounded-full">
+                                  {therapy.completedSessions}/{therapy.totalSessions}
+                                </span>
+                              </div>
+                              <div className="w-full bg-muted/50 rounded-full h-3 overflow-hidden">
+                                <motion.div
+                                  className="bg-gradient-to-r from-primary to-emerald-400 h-3 rounded-full"
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${(therapy.completedSessions / therapy.totalSessions) * 100}%` }}
+                                  transition={{ duration: 1, delay: 0.8 + index * 0.1 }}
+                                />
+                              </div>
+                            </motion.div>
+                          ))
+                        ) : (
+                          <p className="text-muted-foreground text-center py-8">No therapy history available</p>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
+                </motion.div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Quick Actions</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <Button className="w-full" variant="default">
-                    Book New Appointment
-                  </Button>
-                  <Button className="w-full bg-transparent" variant="outline">
-                    View Treatment Plan
-                  </Button>
-                  <Button className="w-full bg-transparent" variant="outline">
-                    Contact Practitioner
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        )}
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5, delay: 0.8 }}
+                >
+                  <Card className="hover:shadow-xl transition-all duration-300">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                        Quick Actions
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Button className="w-full" variant="default" size="lg">
+                        <Calendar className="h-4 w-4 mr-2" />
+                        Book New Appointment
+                      </Button>
+                      <Button variant="outline" size="lg" className="w-full">
+                        <BookOpen className="h-4 w-4 mr-2" />
+                        View Treatment Plan
+                      </Button>
+                      <Button variant="outline" size="lg" className="w-full">
+                        <User className="h-4 w-4 mr-2" />
+                        Contact Practitioner
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </div>
+            </motion.div>
+          )}
 
-        {activeTab === "appointments" && <AppointmentCalendar userType="patient" />}
-        {activeTab === "progress" && <TherapyProgress />}
-        {activeTab === "notifications" && <NotificationCenter />}
+          {activeTab === "appointments" && (
+            <motion.div
+              key="appointments"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.5 }}
+            >
+              <AppointmentCalendar userType="patient" />
+            </motion.div>
+          )}
+          
+          {activeTab === "progress" && (
+            <motion.div
+              key="progress"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.5 }}
+            >
+              <TherapyProgress />
+            </motion.div>
+          )}
+          
+          {activeTab === "notifications" && (
+            <motion.div
+              key="notifications"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.5 }}
+            >
+              <NotificationCenter />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
     </div>
   )

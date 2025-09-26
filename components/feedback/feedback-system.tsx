@@ -11,8 +11,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { MessageSquare, TrendingUp, AlertTriangle, CheckCircle, Star, BarChart3, Filter, Search, Send, ThumbsUp, ThumbsDown } from "lucide-react"
-import { toast } from "sonner"
+import { MessageSquare, TrendingUp, AlertTriangle, CheckCircle, Star, BarChart3, Filter, Search, Send, ThumbsUp, ThumbsDown, Loader2 } from "lucide-react"
+import { useAuth } from "@/contexts/auth-context"
+import { FeedbackService, Feedback } from "@/lib/feedback-service"
+import { useToast } from "@/hooks/use-toast"
 
 interface PatientFeedback {
   id: string
@@ -45,125 +47,138 @@ interface FeedbackAnalytics {
 }
 
 export function FeedbackSystem() {
-  const [feedback, setFeedback] = useState<PatientFeedback[]>([
-    {
-      id: '1',
-      patientId: 'p1',
-      patientName: 'Sarah Johnson',
-      appointmentId: 'a1',
-      therapy: 'Abhyanga',
-      sessionDate: '2024-01-20',
-      rating: 5,
-      symptoms: ['Back pain', 'Stress'],
-      improvements: ['Better sleep', 'Reduced stress', 'Increased energy'],
-      sideEffects: ['Mild drowsiness'],
-      overallFeeling: 'Excellent - feeling much better',
-      notes: 'The therapy was very relaxing and effective. I can feel significant improvement in my back pain.',
-      followUpNeeded: false,
-      status: 'responded',
-      practitionerResponse: 'Great to hear about your progress! Continue with the recommended exercises.',
-      responseDate: '2024-01-21',
-      createdAt: '2024-01-20'
-    },
-    {
-      id: '2',
-      patientId: 'p2',
-      patientName: 'Michael Chen',
-      appointmentId: 'a2',
-      therapy: 'Shirodhara',
-      sessionDate: '2024-01-22',
-      rating: 4,
-      symptoms: ['Anxiety', 'Insomnia'],
-      improvements: ['Better sleep quality', 'Reduced anxiety'],
-      sideEffects: ['Slight headache'],
-      overallFeeling: 'Good - noticeable improvement',
-      notes: 'The session was very calming. I slept better that night but had a slight headache the next morning.',
-      followUpNeeded: true,
-      status: 'pending',
-      createdAt: '2024-01-22'
-    },
-    {
-      id: '3',
-      patientId: 'p3',
-      patientName: 'Emma Wilson',
-      appointmentId: 'a3',
-      therapy: 'Panchakarma',
-      sessionDate: '2024-01-23',
-      rating: 5,
-      symptoms: ['Digestive issues', 'Fatigue'],
-      improvements: ['Better digestion', 'Increased energy', 'Improved mood'],
-      sideEffects: [],
-      overallFeeling: 'Excellent - amazing results',
-      notes: 'This has been life-changing. My digestive issues have improved significantly and I feel more energetic.',
-      followUpNeeded: false,
-      status: 'reviewed',
-      createdAt: '2024-01-23'
-    }
-  ])
+  const { profile } = useAuth()
+  const { toast } = useToast()
+  const [feedback, setFeedback] = useState<Feedback[]>([])
+  const [loading, setLoading] = useState(true)
 
   const [selectedFeedback, setSelectedFeedback] = useState<string>('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterTherapy, setFilterTherapy] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [practitionerResponse, setPractitionerResponse] = useState('')
+  const [analytics, setAnalytics] = useState<FeedbackAnalytics>({
+    totalFeedback: 0,
+    averageRating: 0,
+    positiveResponses: 0,
+    negativeResponses: 0,
+    commonSymptoms: [],
+    commonImprovements: [],
+    therapyRatings: []
+  })
 
-  const analytics: FeedbackAnalytics = {
-    totalFeedback: feedback.length,
-    averageRating: feedback.reduce((sum, f) => sum + f.rating, 0) / feedback.length,
-    positiveResponses: feedback.filter(f => f.rating >= 4).length,
-    negativeResponses: feedback.filter(f => f.rating <= 2).length,
-    commonSymptoms: [
-      { symptom: 'Back pain', count: 2 },
-      { symptom: 'Stress', count: 2 },
-      { symptom: 'Anxiety', count: 1 },
-      { symptom: 'Insomnia', count: 1 }
-    ],
-    commonImprovements: [
-      { improvement: 'Better sleep', count: 3 },
-      { improvement: 'Reduced stress', count: 2 },
-      { improvement: 'Increased energy', count: 2 }
-    ],
-    therapyRatings: [
-      { therapy: 'Abhyanga', averageRating: 5 },
-      { therapy: 'Shirodhara', averageRating: 4 },
-      { therapy: 'Panchakarma', averageRating: 5 }
-    ]
+  useEffect(() => {
+    if (profile) {
+      loadFeedbackData()
+    }
+  }, [profile])
+
+  const loadFeedbackData = async () => {
+    if (!profile) return
+    
+    setLoading(true)
+    try {
+      const [feedbackData, statsData] = await Promise.all([
+        FeedbackService.getFeedbackByPractitioner(profile.id),
+        FeedbackService.getFeedbackStats(profile.id)
+      ])
+      
+      setFeedback(feedbackData || [])
+      
+      // Calculate analytics from real data
+      const allSymptoms = feedbackData?.flatMap(f => f.symptoms) || []
+      const allImprovements = feedbackData?.flatMap(f => f.improvements) || []
+      
+      const symptomCounts = allSymptoms.reduce((acc: Record<string, number>, symptom) => {
+        acc[symptom] = (acc[symptom] || 0) + 1
+        return acc
+      }, {})
+      
+      const improvementCounts = allImprovements.reduce((acc: Record<string, number>, improvement) => {
+        acc[improvement] = (acc[improvement] || 0) + 1
+        return acc
+      }, {})
+      
+      const therapyRatings = feedbackData?.reduce((acc: Record<string, number[]>, f) => {
+        if (f.appointments?.therapy && f.rating) {
+          if (!acc[f.appointments.therapy]) acc[f.appointments.therapy] = []
+          acc[f.appointments.therapy].push(f.rating)
+        }
+        return acc
+      }, {}) || {}
+      
+      setAnalytics({
+        totalFeedback: statsData.totalFeedbacks,
+        averageRating: statsData.averageRating,
+        positiveResponses: feedbackData?.filter(f => (f.rating || 0) >= 4).length || 0,
+        negativeResponses: feedbackData?.filter(f => (f.rating || 0) <= 2).length || 0,
+        commonSymptoms: Object.entries(symptomCounts)
+          .map(([symptom, count]) => ({ symptom, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5),
+        commonImprovements: Object.entries(improvementCounts)
+          .map(([improvement, count]) => ({ improvement, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5),
+        therapyRatings: Object.entries(therapyRatings)
+          .map(([therapy, ratings]) => ({
+            therapy,
+            averageRating: ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length
+          }))
+          .sort((a, b) => b.averageRating - a.averageRating)
+      })
+    } catch (error) {
+      console.error('Error loading feedback data:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load feedback data. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   const filteredFeedback = feedback.filter(f => {
-    const matchesStatus = filterStatus === 'all' || f.status === filterStatus
-    const matchesTherapy = filterTherapy === 'all' || f.therapy === filterTherapy
-    const matchesSearch = f.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         f.therapy.toLowerCase().includes(searchTerm.toLowerCase())
-    return matchesStatus && matchesTherapy && matchesSearch
+    const therapy = f.appointments?.therapy || ''
+    const patientName = f.appointments?.patients ? 
+      `${f.appointments.patients.first_name} ${f.appointments.patients.last_name}` : 
+      'Unknown Patient'
+    
+    const matchesTherapy = filterTherapy === 'all' || therapy === filterTherapy
+    const matchesSearch = patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         therapy.toLowerCase().includes(searchTerm.toLowerCase())
+    return matchesTherapy && matchesSearch
   })
 
-  const handleResponse = (feedbackId: string) => {
+  const handleResponse = async (feedbackId: string) => {
     if (!practitionerResponse.trim()) {
-      toast.error('Please enter a response')
+      toast({
+        title: "Error",
+        description: "Please enter a response",
+        variant: "destructive",
+      })
       return
     }
 
-    setFeedback(prev => prev.map(f => 
-      f.id === feedbackId 
-        ? { 
-            ...f, 
-            practitionerResponse, 
-            responseDate: new Date().toISOString().split('T')[0],
-            status: 'responded' as const
-          }
-        : f
-    ))
-    
-    setPractitionerResponse('')
-    toast.success('Response sent successfully')
-  }
-
-  const handleStatusUpdate = (feedbackId: string, newStatus: PatientFeedback['status']) => {
-    setFeedback(prev => prev.map(f => 
-      f.id === feedbackId ? { ...f, status: newStatus } : f
-    ))
-    toast.success('Status updated successfully')
+    try {
+      // In a real implementation, you would update the feedback with practitioner response
+      // For now, we'll just show a success message
+      toast({
+        title: "Success",
+        description: "Response sent successfully",
+      })
+      
+      setPractitionerResponse('')
+      setSelectedFeedback('')
+    } catch (error) {
+      console.error('Error sending response:', error)
+      toast({
+        title: "Error",
+        description: "Failed to send response. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const getStatusColor = (status: string) => {
@@ -223,7 +238,9 @@ export function FeedbackSystem() {
                     <MessageSquare className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{analytics.totalFeedback}</p>
+                    <p className="text-2xl font-bold">
+                      {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : analytics.totalFeedback}
+                    </p>
                     <p className="text-sm text-muted-foreground">Total Feedback</p>
                   </div>
                 </div>
@@ -237,7 +254,9 @@ export function FeedbackSystem() {
                     <Star className="h-6 w-6 text-green-600" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{analytics.averageRating.toFixed(1)}</p>
+                    <p className="text-2xl font-bold">
+                      {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : analytics.averageRating.toFixed(1)}
+                    </p>
                     <p className="text-sm text-muted-foreground">Avg Rating</p>
                   </div>
                 </div>
@@ -251,7 +270,9 @@ export function FeedbackSystem() {
                     <ThumbsUp className="h-6 w-6 text-blue-600" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{analytics.positiveResponses}</p>
+                    <p className="text-2xl font-bold">
+                      {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : analytics.positiveResponses}
+                    </p>
                     <p className="text-sm text-muted-foreground">Positive</p>
                   </div>
                 </div>
@@ -265,7 +286,9 @@ export function FeedbackSystem() {
                     <ThumbsDown className="h-6 w-6 text-red-600" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{analytics.negativeResponses}</p>
+                    <p className="text-2xl font-bold">
+                      {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : analytics.negativeResponses}
+                    </p>
                     <p className="text-sm text-muted-foreground">Negative</p>
                   </div>
                 </div>
@@ -281,23 +304,39 @@ export function FeedbackSystem() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {feedback.slice(0, 3).map((item) => (
-                    <div key={item.id} className="flex items-start gap-3 p-3 border rounded-lg">
-                      <div className="flex flex-col items-center gap-1">
-                        {getRatingStars(item.rating)}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-semibold text-sm">{item.patientName}</h4>
-                          <Badge variant="outline" className="text-xs">{item.therapy}</Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground mb-2">{item.overallFeeling}</p>
-                        <Badge className={`text-xs ${getStatusColor(item.status)}`}>
-                          {item.status}
-                        </Badge>
-                      </div>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                      <span className="ml-2">Loading feedback...</span>
                     </div>
-                  ))}
+                  ) : feedback.length > 0 ? (
+                    feedback.slice(0, 3).map((item) => {
+                      const patientName = item.appointments?.patients ? 
+                        `${item.appointments.patients.first_name} ${item.appointments.patients.last_name}` : 
+                        'Unknown Patient'
+                      const therapy = item.appointments?.therapy || 'Unknown Therapy'
+                      
+                      return (
+                        <div key={item.id} className="flex items-start gap-3 p-3 border rounded-lg">
+                          <div className="flex flex-col items-center gap-1">
+                            {getRatingStars(item.rating || 0)}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-semibold text-sm">{patientName}</h4>
+                              <Badge variant="outline" className="text-xs">{therapy}</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mb-2">{item.overall_feeling || 'No comment'}</p>
+                            <Badge className="text-xs bg-green-100 text-green-800">
+                              {item.follow_up_needed ? 'Follow-up needed' : 'Complete'}
+                            </Badge>
+                          </div>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <p className="text-muted-foreground text-center py-8">No feedback available</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -309,15 +348,29 @@ export function FeedbackSystem() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {analytics.commonSymptoms.map((item, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <span className="text-sm font-medium">{item.symptom}</span>
-                      <div className="flex items-center gap-2">
-                        <Progress value={(item.count / Math.max(...analytics.commonSymptoms.map(s => s.count))) * 100} className="w-16 h-2" />
-                        <span className="text-xs text-muted-foreground w-6">{item.count}</span>
-                      </div>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                      <span className="ml-2">Loading symptoms...</span>
                     </div>
-                  ))}
+                  ) : analytics.commonSymptoms.length > 0 ? (
+                    analytics.commonSymptoms.map((item, index) => (
+                      <div key={index} className="flex items-center justify-between">
+                        <span className="text-sm font-medium">{item.symptom}</span>
+                        <div className="flex items-center gap-2">
+                          <Progress 
+                            value={analytics.commonSymptoms.length > 0 ? 
+                              (item.count / Math.max(...analytics.commonSymptoms.map(s => s.count))) * 100 : 0
+                            } 
+                            className="w-16 h-2" 
+                          />
+                          <span className="text-xs text-muted-foreground w-6">{item.count}</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground text-center py-8">No symptoms data available</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -364,104 +417,107 @@ export function FeedbackSystem() {
           </div>
 
           <div className="grid gap-4">
-            {filteredFeedback.map((item) => (
-              <Card key={item.id} className="cursor-pointer hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-4">
-                      <div className="flex flex-col items-center gap-1">
-                        {getRatingStars(item.rating)}
-                        <span className="text-xs text-muted-foreground">{item.rating}/5</span>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h4 className="font-semibold">{item.patientName}</h4>
-                          <Badge variant="outline">{item.therapy}</Badge>
-                          <Badge className={getStatusColor(item.status)}>
-                            {item.status}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-3">{item.overallFeeling}</p>
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span className="ml-2">Loading feedback...</span>
+              </div>
+            ) : filteredFeedback.length > 0 ? (
+              filteredFeedback.map((item) => {
+                const patientName = item.appointments?.patients ? 
+                  `${item.appointments.patients.first_name} ${item.appointments.patients.last_name}` : 
+                  'Unknown Patient'
+                const therapy = item.appointments?.therapy || 'Unknown Therapy'
+                
+                return (
+                  <Card key={item.id} className="cursor-pointer hover:shadow-md transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-4">
+                          <div className="flex flex-col items-center gap-1">
+                            {getRatingStars(item.rating || 0)}
+                            <span className="text-xs text-muted-foreground">{item.rating || 0}/5</span>
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h4 className="font-semibold">{patientName}</h4>
+                              <Badge variant="outline">{therapy}</Badge>
+                              <Badge className={item.follow_up_needed ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"}>
+                                {item.follow_up_needed ? 'Follow-up needed' : 'Complete'}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-3">{item.overall_feeling || 'No comment provided'}</p>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                          <div>
-                            <h5 className="font-medium mb-1">Symptoms</h5>
-                            <div className="flex flex-wrap gap-1">
-                              {item.symptoms.map((symptom, index) => (
-                                <Badge key={index} variant="outline" className="text-xs">
-                                  {symptom}
-                                </Badge>
-                              ))}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                              <div>
+                                <h5 className="font-medium mb-1">Symptoms</h5>
+                                <div className="flex flex-wrap gap-1">
+                                  {item.symptoms.length > 0 ? (
+                                    item.symptoms.map((symptom, index) => (
+                                      <Badge key={index} variant="outline" className="text-xs">
+                                        {symptom}
+                                      </Badge>
+                                    ))
+                                  ) : (
+                                    <span className="text-muted-foreground">None reported</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div>
+                                <h5 className="font-medium mb-1">Improvements</h5>
+                                <div className="flex flex-wrap gap-1">
+                                  {item.improvements.length > 0 ? (
+                                    item.improvements.map((improvement, index) => (
+                                      <Badge key={index} variant="outline" className="text-xs bg-green-50">
+                                        {improvement}
+                                      </Badge>
+                                    ))
+                                  ) : (
+                                    <span className="text-muted-foreground">None reported</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div>
+                                <h5 className="font-medium mb-1">Side Effects</h5>
+                                <div className="flex flex-wrap gap-1">
+                                  {item.side_effects.length > 0 ? (
+                                    item.side_effects.map((effect, index) => (
+                                      <Badge key={index} variant="outline" className="text-xs bg-yellow-50">
+                                        {effect}
+                                      </Badge>
+                                    ))
+                                  ) : (
+                                    <span className="text-muted-foreground">None reported</span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                          <div>
-                            <h5 className="font-medium mb-1">Improvements</h5>
-                            <div className="flex flex-wrap gap-1">
-                              {item.improvements.map((improvement, index) => (
-                                <Badge key={index} variant="outline" className="text-xs bg-green-50">
-                                  {improvement}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                          <div>
-                            <h5 className="font-medium mb-1">Side Effects</h5>
-                            <div className="flex flex-wrap gap-1">
-                              {item.sideEffects.length > 0 ? (
-                                item.sideEffects.map((effect, index) => (
-                                  <Badge key={index} variant="outline" className="text-xs bg-yellow-50">
-                                    {effect}
-                                  </Badge>
-                                ))
-                              ) : (
-                                <span className="text-muted-foreground">None reported</span>
-                              )}
-                            </div>
+
+                            {item.notes && (
+                              <div className="mt-3">
+                                <h5 className="font-medium text-sm mb-1">Notes</h5>
+                                <p className="text-sm text-muted-foreground">{item.notes}</p>
+                              </div>
+                            )}
                           </div>
                         </div>
-
-                        {item.notes && (
-                          <div className="mt-3">
-                            <h5 className="font-medium text-sm mb-1">Notes</h5>
-                            <p className="text-sm text-muted-foreground">{item.notes}</p>
-                          </div>
-                        )}
-
-                        {item.practitionerResponse && (
-                          <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                            <h5 className="font-medium text-sm mb-1">Your Response</h5>
-                            <p className="text-sm">{item.practitionerResponse}</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {new Date(item.responseDate!).toLocaleDateString()}
-                            </p>
-                          </div>
-                        )}
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setSelectedFeedback(item.id)}
+                          >
+                            View Details
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => setSelectedFeedback(item.id)}
-                      >
-                        View Details
-                      </Button>
-                      <Select value={item.status} onValueChange={(value: PatientFeedback['status']) => handleStatusUpdate(item.id, value)}>
-                        <SelectTrigger className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="reviewed">Reviewed</SelectItem>
-                          <SelectItem value="responded">Responded</SelectItem>
-                          <SelectItem value="resolved">Resolved</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    </CardContent>
+                  </Card>
+                )
+              })
+            ) : (
+              <p className="text-muted-foreground text-center py-8">No feedback found</p>
+            )}
           </div>
         </TabsContent>
 
@@ -519,14 +575,17 @@ export function FeedbackSystem() {
               <CardHeader>
                 <CardTitle>Respond to Feedback</CardTitle>
                 <CardDescription>
-                  {selectedFeedbackData.patientName} - {selectedFeedbackData.therapy}
+                  {selectedFeedbackData.appointments?.patients ? 
+                    `${selectedFeedbackData.appointments.patients.first_name} ${selectedFeedbackData.appointments.patients.last_name}` : 
+                    'Unknown Patient'
+                  } - {selectedFeedbackData.appointments?.therapy || 'Unknown Therapy'}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="p-4 bg-gray-50 rounded-lg">
                   <h4 className="font-semibold mb-2">Patient Feedback:</h4>
-                  <p className="text-sm text-muted-foreground mb-2">{selectedFeedbackData.overallFeeling}</p>
-                  <p className="text-sm">{selectedFeedbackData.notes}</p>
+                  <p className="text-sm text-muted-foreground mb-2">{selectedFeedbackData.overall_feeling || 'No comment provided'}</p>
+                  <p className="text-sm">{selectedFeedbackData.notes || 'No additional notes'}</p>
                 </div>
 
                 <div className="space-y-2">

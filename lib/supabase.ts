@@ -1,10 +1,27 @@
 import { createClient } from '@supabase/supabase-js'
 
+// Manually load environment variables if not available
+if (typeof window === 'undefined' && !process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  try {
+    require('dotenv').config({ path: '.env.local' })
+  } catch (error) {
+    console.warn('Could not load .env.local file:', error)
+  }
+}
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder_key'
 
 // Check if we have real Supabase credentials
 const isSupabaseConfigured = supabaseUrl !== 'https://placeholder.supabase.co' && supabaseAnonKey !== 'placeholder_key'
+
+// Debug logging (commented out for production)
+// console.log('Supabase Configuration Debug:', {
+//   supabaseUrl,
+//   supabaseAnonKey: supabaseAnonKey ? `SET (length: ${supabaseAnonKey.length})` : 'NOT SET',
+//   isSupabaseConfigured,
+//   nodeEnv: process.env.NODE_ENV
+// })
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {

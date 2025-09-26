@@ -19,6 +19,8 @@ export default function HomePage() {
         router.push('/practitioner/dashboard')
       } else if (profile.user_type === 'patient') {
         router.push('/patient/dashboard')
+      } else if (profile.user_type === 'admin') {
+        router.push('/admin/dashboard')
       } else {
         router.push('/patient/dashboard')
       }

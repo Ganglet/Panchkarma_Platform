@@ -58,3 +58,4 @@ CREATE INDEX idx_feedback_appointment_id ON feedback(appointment_id);
 CREATE INDEX idx_therapy_progress_patient_id ON therapy_progress(patient_id);
 CREATE INDEX idx_treatment_plans_patient_id ON treatment_plans(patient_id);
 CREATE INDEX idx_wellness_metrics_patient_id ON wellness_metrics(patient_id);
+

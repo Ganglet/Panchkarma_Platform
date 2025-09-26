@@ -53,3 +53,4 @@ CREATE POLICY "Users can view own wellness metrics" ON wellness_metrics
 
 CREATE POLICY "Users can insert own wellness metrics" ON wellness_metrics
     FOR INSERT WITH CHECK (auth.uid() = patient_id);
+

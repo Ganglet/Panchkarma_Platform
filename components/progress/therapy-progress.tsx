@@ -10,8 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Activity, TrendingUp, Target, Calendar, Users, BarChart3, LineChart, PieChart, Plus, Edit, Eye } from "lucide-react"
-import { toast } from "sonner"
+import { Activity, TrendingUp, Target, Calendar, Users, BarChart3, LineChart, PieChart, Plus, Edit, Eye, Loader2 } from "lucide-react"
+import { useAuth } from "@/contexts/auth-context"
+import { ProgressService, TherapyProgress as TherapyProgressType, TreatmentPlan } from "@/lib/progress-service"
+import { useToast } from "@/hooks/use-toast"
 
 interface TherapySession {
   id: string
@@ -53,91 +55,52 @@ interface Milestone {
 }
 
 export function TherapyProgress() {
-  const [progressData, setProgressData] = useState<TherapyProgress[]>([
-    {
-      id: '1',
-      patientId: 'p1',
-      patientName: 'Sarah Johnson',
-      therapy: 'Abhyanga',
-      totalSessions: 8,
-      completedSessions: 6,
-      startDate: '2024-01-01',
-      expectedEndDate: '2024-02-15',
-      currentPhase: 'Mid-treatment',
-      overallProgress: 75,
-      sessions: [
-        {
-          id: 's1',
-          patientId: 'p1',
-          patientName: 'Sarah Johnson',
-          therapy: 'Abhyanga',
-          sessionNumber: 1,
-          date: '2024-01-01',
-          duration: 60,
-          symptomsBefore: ['Back pain', 'Stress', 'Fatigue'],
-          symptomsAfter: ['Reduced back pain', 'Relaxed'],
-          improvements: ['Better sleep', 'Reduced stress'],
-          practitionerNotes: 'Patient responded well to initial treatment. Some muscle tension noted.',
-          nextSessionRecommendations: 'Continue with current approach, focus on lower back area.'
-        },
-        {
-          id: 's2',
-          patientId: 'p1',
-          patientName: 'Sarah Johnson',
-          therapy: 'Abhyanga',
-          sessionNumber: 6,
-          date: '2024-01-20',
-          duration: 60,
-          symptomsBefore: ['Mild back pain', 'Some stress'],
-          symptomsAfter: ['Significant pain relief', 'Very relaxed'],
-          improvements: ['Excellent sleep quality', 'High energy levels', 'Better mood'],
-          practitionerNotes: 'Excellent progress. Patient showing remarkable improvement.',
-          nextSessionRecommendations: 'Continue current treatment plan. Consider extending if needed.'
-        }
-      ],
-      milestones: [
-        { id: 'm1', title: 'Initial Assessment', description: 'Complete initial evaluation', targetDate: '2024-01-01', achieved: true, achievedDate: '2024-01-01' },
-        { id: 'm2', title: 'Mid-Treatment Review', description: 'Evaluate progress at 50% completion', targetDate: '2024-01-15', achieved: true, achievedDate: '2024-01-15' },
-        { id: 'm3', title: 'Final Assessment', description: 'Complete final evaluation', targetDate: '2024-02-15', achieved: false }
-      ]
-    },
-    {
-      id: '2',
-      patientId: 'p2',
-      patientName: 'Michael Chen',
-      therapy: 'Shirodhara',
-      totalSessions: 6,
-      completedSessions: 3,
-      startDate: '2024-01-10',
-      expectedEndDate: '2024-02-20',
-      currentPhase: 'Early treatment',
-      overallProgress: 50,
-      sessions: [
-        {
-          id: 's3',
-          patientId: 'p2',
-          patientName: 'Michael Chen',
-          therapy: 'Shirodhara',
-          sessionNumber: 3,
-          date: '2024-01-25',
-          duration: 45,
-          symptomsBefore: ['Anxiety', 'Insomnia', 'Headaches'],
-          symptomsAfter: ['Calmer', 'Better sleep quality'],
-          improvements: ['Reduced anxiety', 'Improved sleep'],
-          practitionerNotes: 'Good response to treatment. Patient reports feeling more centered.',
-          nextSessionRecommendations: 'Continue with current frequency. Monitor sleep patterns.'
-        }
-      ],
-      milestones: [
-        { id: 'm4', title: 'Initial Assessment', description: 'Complete initial evaluation', targetDate: '2024-01-10', achieved: true, achievedDate: '2024-01-10' },
-        { id: 'm5', title: 'Mid-Treatment Review', description: 'Evaluate progress at 50% completion', targetDate: '2024-02-05', achieved: false },
-        { id: 'm6', title: 'Final Assessment', description: 'Complete final evaluation', targetDate: '2024-02-20', achieved: false }
-      ]
-    }
-  ])
+  const { profile } = useAuth()
+  const { toast } = useToast()
+  const [progressData, setProgressData] = useState<TherapyProgressType[]>([])
+  const [treatmentPlans, setTreatmentPlans] = useState<TreatmentPlan[]>([])
+  const [loading, setLoading] = useState(true)
 
   const [selectedPatient, setSelectedPatient] = useState<string>('')
   const [viewMode, setViewMode] = useState<'overview' | 'detailed'>('overview')
+
+  useEffect(() => {
+    if (profile) {
+      loadProgressData()
+    }
+  }, [profile])
+
+  const loadProgressData = async () => {
+    if (!profile) return
+    
+    setLoading(true)
+    try {
+      if (profile.user_type === 'patient') {
+        const [progressDataResult, treatmentPlansResult] = await Promise.all([
+          ProgressService.getTherapyProgress(profile.id),
+          ProgressService.getTreatmentPlans(profile.id)
+        ])
+        setProgressData(progressDataResult)
+        setTreatmentPlans(treatmentPlansResult)
+      } else if (profile.user_type === 'practitioner') {
+        const [progressDataResult, treatmentPlansResult] = await Promise.all([
+          ProgressService.getTherapyProgressByPractitioner(profile.id),
+          ProgressService.getTreatmentPlansByPractitioner(profile.id)
+        ])
+        setProgressData(progressDataResult)
+        setTreatmentPlans(treatmentPlansResult)
+      }
+    } catch (error) {
+      console.error('Error loading progress data:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load progress data. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const getProgressColor = (progress: number) => {
     if (progress >= 80) return 'bg-green-500'
@@ -192,65 +155,89 @@ export function TherapyProgress() {
 
         <TabsContent value="overview" className="space-y-4">
           <div className="grid gap-4">
-            {progressData.map((progress) => (
-              <Card key={progress.id} className="cursor-pointer hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-4">
-                      <div className="p-3 bg-primary/10 rounded-lg">
-                        <Activity className="h-6 w-6 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h4 className="font-semibold text-lg">{progress.patientName}</h4>
-                          <Badge variant="outline">{progress.therapy}</Badge>
-                          <Badge className={getPhaseColor(progress.currentPhase)}>
-                            {progress.currentPhase}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-4">
-                          Session {progress.completedSessions} of {progress.totalSessions} • 
-                          Started {new Date(progress.startDate).toLocaleDateString()}
-                        </p>
-                        
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Overall Progress</span>
-                            <span>{progress.overallProgress}%</span>
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span className="ml-2">Loading progress data...</span>
+              </div>
+            ) : progressData.length > 0 ? (
+              progressData.map((progress) => {
+                const patientName = progress.appointments?.patients ? 
+                  `${progress.appointments.patients.first_name} ${progress.appointments.patients.last_name}` : 
+                  'Unknown Patient'
+                const therapy = progress.appointments?.therapy || progress.therapies?.name || 'Unknown Therapy'
+                const overallProgress = treatmentPlans.length > 0 ? 
+                  Math.round((treatmentPlans[0].completed_sessions / treatmentPlans[0].total_sessions) * 100) : 0
+                
+                return (
+                  <Card key={progress.id} className="cursor-pointer hover:shadow-md transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-4">
+                          <div className="p-3 bg-primary/10 rounded-lg">
+                            <Activity className="h-6 w-6 text-primary" />
                           </div>
-                          <Progress value={progress.overallProgress} className="h-2" />
-                        </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h4 className="font-semibold text-lg">{patientName}</h4>
+                              <Badge variant="outline">{therapy}</Badge>
+                              <Badge className="bg-blue-100 text-blue-800">
+                                Session {progress.session_number}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-4">
+                              Session {progress.session_number} • 
+                              {new Date(progress.created_at).toLocaleDateString()}
+                            </p>
+                            
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-sm">
+                                <span>Progress</span>
+                                <span>{overallProgress}%</span>
+                              </div>
+                              <Progress value={overallProgress} className="h-2" />
+                            </div>
 
-                        <div className="flex items-center gap-4 mt-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-4 w-4" />
-                            {progress.completedSessions} sessions completed
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Target className="h-4 w-4" />
-                            {progress.milestones.filter(m => m.achieved).length}/{progress.milestones.length} milestones
+                            <div className="flex items-center gap-4 mt-4 text-sm text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="h-4 w-4" />
+                                {progress.session_number} sessions completed
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Target className="h-4 w-4" />
+                                {progress.improvements.length} improvements noted
+                              </div>
+                            </div>
                           </div>
                         </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setSelectedPatient(progress.id)}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Details
+                          </Button>
+                          <Button variant="outline" size="sm">
+                            <Edit className="h-4 w-4 mr-2" />
+                            Update
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => setSelectedPatient(progress.id)}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Details
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <Edit className="h-4 w-4 mr-2" />
-                        Update
-                      </Button>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
+                )
+              })
+            ) : (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <Activity className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-lg font-semibold mb-2">No Progress Data</h3>
+                  <p className="text-muted-foreground">No therapy progress data available yet.</p>
                 </CardContent>
               </Card>
-            ))}
+            )}
           </div>
         </TabsContent>
 
@@ -259,7 +246,10 @@ export function TherapyProgress() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-semibold">
-                  Session History - {selectedProgress.patientName}
+                  Session Details - {selectedProgress.appointments?.patients ? 
+                    `${selectedProgress.appointments.patients.first_name} ${selectedProgress.appointments.patients.last_name}` : 
+                    'Unknown Patient'
+                  }
                 </h3>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
@@ -267,138 +257,131 @@ export function TherapyProgress() {
                 </Button>
               </div>
               
-              <div className="grid gap-4">
-                {selectedProgress.sessions.map((session) => (
-                  <Card key={session.id}>
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <CardTitle className="text-lg">Session {session.sessionNumber}</CardTitle>
-                          <CardDescription>
-                            {new Date(session.date).toLocaleDateString()} • {session.duration} minutes
-                          </CardDescription>
-                        </div>
-                        <Badge variant="outline">Completed</Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <h4 className="font-semibold mb-2">Symptoms Before</h4>
-                          <div className="flex flex-wrap gap-1">
-                            {session.symptomsBefore.map((symptom, index) => (
-                              <Badge key={index} variant="outline" className="text-xs">
-                                {symptom}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <h4 className="font-semibold mb-2">Symptoms After</h4>
-                          <div className="flex flex-wrap gap-1">
-                            {session.symptomsAfter.map((symptom, index) => (
-                              <Badge key={index} variant="outline" className="text-xs bg-green-50">
-                                {symptom}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <h4 className="font-semibold mb-2">Improvements</h4>
-                        <div className="flex flex-wrap gap-1">
-                          {session.improvements.map((improvement, index) => (
-                            <Badge key={index} variant="outline" className="text-xs bg-blue-50">
-                              {improvement}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg">Session {selectedProgress.session_number}</CardTitle>
+                      <CardDescription>
+                        {new Date(selectedProgress.created_at).toLocaleDateString()}
+                      </CardDescription>
+                    </div>
+                    <Badge variant="outline">Completed</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="font-semibold mb-2">Symptoms Before</h4>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedProgress.symptoms_before.length > 0 ? (
+                          selectedProgress.symptoms_before.map((symptom, index) => (
+                            <Badge key={index} variant="outline" className="text-xs">
+                              {symptom}
                             </Badge>
-                          ))}
-                        </div>
+                          ))
+                        ) : (
+                          <span className="text-muted-foreground text-sm">None recorded</span>
+                        )}
                       </div>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold mb-2">Symptoms After</h4>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedProgress.symptoms_after.length > 0 ? (
+                          selectedProgress.symptoms_after.map((symptom, index) => (
+                            <Badge key={index} variant="outline" className="text-xs bg-green-50">
+                              {symptom}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-muted-foreground text-sm">None recorded</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold mb-2">Improvements</h4>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedProgress.improvements.length > 0 ? (
+                        selectedProgress.improvements.map((improvement, index) => (
+                          <Badge key={index} variant="outline" className="text-xs bg-blue-50">
+                            {improvement}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground text-sm">None recorded</span>
+                      )}
+                    </div>
+                  </div>
 
-                      <div>
-                        <h4 className="font-semibold mb-2">Practitioner Notes</h4>
-                        <p className="text-sm text-muted-foreground">{session.practitionerNotes}</p>
-                      </div>
+                  {selectedProgress.practitioner_assessment && (
+                    <div>
+                      <h4 className="font-semibold mb-2">Practitioner Assessment</h4>
+                      <p className="text-sm text-muted-foreground">{selectedProgress.practitioner_assessment}</p>
+                    </div>
+                  )}
 
-                      <div>
-                        <h4 className="font-semibold mb-2">Next Session Recommendations</h4>
-                        <p className="text-sm text-muted-foreground">{session.nextSessionRecommendations}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                  {selectedProgress.next_session_recommendations && (
+                    <div>
+                      <h4 className="font-semibold mb-2">Next Session Recommendations</h4>
+                      <p className="text-sm text-muted-foreground">{selectedProgress.next_session_recommendations}</p>
+                    </div>
+                  )}
+
+                  {selectedProgress.progress_notes && (
+                    <div>
+                      <h4 className="font-semibold mb-2">Progress Notes</h4>
+                      <p className="text-sm text-muted-foreground">{selectedProgress.progress_notes}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           ) : (
             <Card>
               <CardContent className="p-8 text-center">
                 <Activity className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-lg font-semibold mb-2">Select a Patient</h3>
-                <p className="text-muted-foreground">Choose a patient from the overview to view their session details</p>
+                <h3 className="text-lg font-semibold mb-2">Select a Session</h3>
+                <p className="text-muted-foreground">Choose a session from the overview to view details</p>
               </CardContent>
             </Card>
           )}
         </TabsContent>
 
         <TabsContent value="milestones" className="space-y-4">
-          {selectedProgress ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-semibold">
-                  Milestones - {selectedProgress.patientName}
-                </h3>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Milestone
-                </Button>
-              </div>
-              
-              <div className="grid gap-4">
-                {selectedProgress.milestones.map((milestone) => (
-                  <Card key={milestone.id}>
-                    <CardContent className="p-6">
-                      <div className="flex items-start gap-4">
-                        <div className={`p-2 rounded-full ${milestone.achieved ? 'bg-green-100' : 'bg-gray-100'}`}>
-                          {milestone.achieved ? (
-                            <Target className="h-5 w-5 text-green-600" />
-                          ) : (
-                            <Target className="h-5 w-5 text-gray-400" />
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h4 className="font-semibold">{milestone.title}</h4>
-                            <Badge variant={milestone.achieved ? "default" : "outline"}>
-                              {milestone.achieved ? 'Achieved' : 'Pending'}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-2">{milestone.description}</p>
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            <span>Target: {new Date(milestone.targetDate).toLocaleDateString()}</span>
-                            {milestone.achievedDate && (
-                              <span>Achieved: {new Date(milestone.achievedDate).toLocaleDateString()}</span>
-                            )}
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          {milestone.achieved ? 'View' : 'Mark Complete'}
-                        </Button>
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Target className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold mb-2">Treatment Plans</h3>
+              <p className="text-muted-foreground">View and manage treatment plans and milestones</p>
+              {treatmentPlans.length > 0 ? (
+                <div className="mt-6 space-y-4">
+                  {treatmentPlans.map((plan) => (
+                    <div key={plan.id} className="p-4 border rounded-lg text-left">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold">{plan.name}</h4>
+                        <Badge variant={plan.status === 'active' ? 'default' : 'outline'}>
+                          {plan.status}
+                        </Badge>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <Target className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-lg font-semibold mb-2">Select a Patient</h3>
-                <p className="text-muted-foreground">Choose a patient from the overview to view their milestones</p>
-              </CardContent>
-            </Card>
-          )}
+                      <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <span>Sessions: {plan.completed_sessions}/{plan.total_sessions}</span>
+                        <span>Started: {new Date(plan.start_date).toLocaleDateString()}</span>
+                      </div>
+                      <div className="mt-2">
+                        <Progress value={(plan.completed_sessions / plan.total_sessions) * 100} className="h-2" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground mt-4">No treatment plans available</p>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-4">
@@ -407,20 +390,37 @@ export function TherapyProgress() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <BarChart3 className="h-5 w-5" />
-                  Progress Distribution
+                  Progress Overview
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {progressData.map((progress) => (
-                    <div key={progress.id} className="flex items-center justify-between">
-                      <span className="text-sm font-medium">{progress.patientName}</span>
-                      <div className="flex items-center gap-2">
-                        <Progress value={progress.overallProgress} className="w-24 h-2" />
-                        <span className="text-sm text-muted-foreground w-12">{progress.overallProgress}%</span>
-                      </div>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                      <span className="ml-2">Loading analytics...</span>
                     </div>
-                  ))}
+                  ) : progressData.length > 0 ? (
+                    progressData.map((progress) => {
+                      const patientName = progress.appointments?.patients ? 
+                        `${progress.appointments.patients.first_name} ${progress.appointments.patients.last_name}` : 
+                        'Unknown Patient'
+                      const overallProgress = treatmentPlans.length > 0 ? 
+                        Math.round((treatmentPlans[0].completed_sessions / treatmentPlans[0].total_sessions) * 100) : 0
+                      
+                      return (
+                        <div key={progress.id} className="flex items-center justify-between">
+                          <span className="text-sm font-medium">{patientName}</span>
+                          <div className="flex items-center gap-2">
+                            <Progress value={overallProgress} className="w-24 h-2" />
+                            <span className="text-sm text-muted-foreground w-12">{overallProgress}%</span>
+                          </div>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <p className="text-muted-foreground text-center py-8">No progress data available</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -429,27 +429,38 @@ export function TherapyProgress() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="h-5 w-5" />
-                  Therapy Success Rates
+                  Improvement Summary
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Abhyanga</span>
-                    <Badge className="bg-green-100 text-green-800">94% Success</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Shirodhara</span>
-                    <Badge className="bg-blue-100 text-blue-800">87% Success</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Basti</span>
-                    <Badge className="bg-yellow-100 text-yellow-800">82% Success</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Panchakarma</span>
-                    <Badge className="bg-green-100 text-green-800">91% Success</Badge>
-                  </div>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                      <span className="ml-2">Loading improvements...</span>
+                    </div>
+                  ) : progressData.length > 0 ? (
+                    (() => {
+                      const allImprovements = progressData.flatMap(p => p.improvements)
+                      const improvementCounts = allImprovements.reduce((acc: Record<string, number>, improvement) => {
+                        acc[improvement] = (acc[improvement] || 0) + 1
+                        return acc
+                      }, {})
+                      
+                      const topImprovements = Object.entries(improvementCounts)
+                        .sort(([, a], [, b]) => b - a)
+                        .slice(0, 5)
+                      
+                      return topImprovements.map(([improvement, count]) => (
+                        <div key={improvement} className="flex items-center justify-between">
+                          <span className="text-sm font-medium">{improvement}</span>
+                          <Badge className="bg-green-100 text-green-800">{count} times</Badge>
+                        </div>
+                      ))
+                    })()
+                  ) : (
+                    <p className="text-muted-foreground text-center py-8">No improvement data available</p>
+                  )}
                 </div>
               </CardContent>
             </Card>

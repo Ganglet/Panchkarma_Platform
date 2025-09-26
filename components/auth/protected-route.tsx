@@ -53,3 +53,4 @@ export function ProtectedRoute({ children, allowedUserTypes }: ProtectedRoutePro
 
   return <>{children}</>
 }
+

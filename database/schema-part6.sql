@@ -40,3 +40,4 @@ INSERT INTO therapies (name, description, duration_minutes, category, pre_proced
 ('Panchakarma Consultation', 'Comprehensive assessment and treatment planning', 30, 'Consultation', 'Bring medical history. Fast for 2 hours before.', 'Follow treatment plan. Schedule next appointment.'),
 ('Nasya', 'Nasal administration of medicated oils', 20, 'Respiratory', 'Empty stomach. Clean nasal passages.', 'Avoid cold foods. Rest for 30 minutes.'),
 ('Virechana', 'Therapeutic purgation', 120, 'Detoxification', 'Light diet for 3 days. Stay hydrated.', 'Rest for 24 hours. Follow prescribed diet for 1 week.');
+

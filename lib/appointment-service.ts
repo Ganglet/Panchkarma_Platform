@@ -301,3 +301,4 @@ export class AppointmentService {
     return Object.values(therapyStats)
   }
 }
+

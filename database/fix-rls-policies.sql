@@ -13,3 +13,4 @@ CREATE POLICY "Users can insert own therapy progress" ON therapy_progress
 
 CREATE POLICY "Users can insert own treatment plans" ON treatment_plans
     FOR INSERT WITH CHECK (auth.uid() = patient_id OR auth.uid() = practitioner_id);
+
