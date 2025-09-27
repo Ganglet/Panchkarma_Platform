@@ -12,6 +12,7 @@ import { PatientManagement } from "@/components/practitioner/patient-management"
 import { TherapyPlanner } from "@/components/practitioner/therapy-planner"
 import { AnalyticsDashboard } from "@/components/practitioner/analytics-dashboard"
 import { ProcedureAlerts } from "@/components/notifications/procedure-alerts"
+import { AppointmentAlert } from "@/components/notifications/appointment-alert"
 import { TherapyProgress } from "@/components/progress/therapy-progress"
 import { FeedbackSystem } from "@/components/feedback/feedback-system"
 import { useAuth } from "@/contexts/auth-context"
@@ -28,6 +29,7 @@ export function PractitionerDashboard() {
   const { profile, signOut } = useAuth()
   const router = useRouter()
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([])
+  const [pendingAppointments, setPendingAppointments] = useState<Appointment[]>([])
   const [stats, setStats] = useState({
     todayPatients: 0,
     weekPatients: 0,
@@ -43,6 +45,7 @@ export function PractitionerDashboard() {
   }, [profile])
 
   const loadDashboardData = async () => {
+    console.log('loadDashboardData called')
     if (!profile) return
     
     setLoading(true)
@@ -71,6 +74,13 @@ export function PractitionerDashboard() {
           PractitionerService.getPractitionerStats(profile.id),
           loadTodayAppointments()
         ])
+        
+        // Load pending appointments (scheduled status)
+        const allAppointments = await AppointmentService.getAppointments(profile.id, 'practitioner')
+        console.log('All appointments for practitioner:', allAppointments)
+        const pending = allAppointments.filter(apt => apt.status === 'scheduled')
+        console.log('Pending appointments (scheduled):', pending)
+        setPendingAppointments(pending)
       }
       
       console.log('Loaded practitioner data:', { statsData, todayData })
@@ -301,6 +311,39 @@ export function PractitionerDashboard() {
                   </motion.div>
                 ))}
               </div>
+
+              {/* Pending Appointment Alerts */}
+              {pendingAppointments.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.3 }}
+                >
+                  <Card className="border-l-4 border-l-orange-500">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5 text-orange-500" />
+                        Pending Appointment Requests
+                        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                          {pendingAppointments.length}
+                        </Badge>
+                      </CardTitle>
+                      <CardDescription>
+                        You have {pendingAppointments.length} appointment request{pendingAppointments.length !== 1 ? 's' : ''} waiting for your approval
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {pendingAppointments.map((appointment) => (
+                        <AppointmentAlert
+                          key={appointment.id}
+                          appointment={appointment}
+                          onStatusChange={loadDashboardData}
+                        />
+                      ))}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )}
 
               {/* Automated Features Status */}
               <motion.div

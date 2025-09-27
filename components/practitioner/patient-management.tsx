@@ -1,23 +1,30 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Search, Plus, Eye, Edit, Calendar } from "lucide-react"
+import { Search, Plus, Eye, Edit, Calendar, Loader2 } from "lucide-react"
+import { PractitionerService } from "@/lib/practitioner-service"
+import { AppointmentService } from "@/lib/appointment-service"
+import { useAuth } from "@/contexts/auth-context"
+import { isSupabaseReady, supabase } from "@/lib/supabase"
 
 interface Patient {
   id: string
   name: string
-  age: number
-  condition: string
+  age?: number
+  condition?: string
   status: "active" | "completed" | "paused"
   nextSession: string
   progress: number
   avatar?: string
+  email?: string
+  first_name?: string
+  last_name?: string
 }
 
 const mockPatients: Patient[] = [
@@ -53,14 +60,131 @@ const mockPatients: Patient[] = [
   },
 ]
 
-export function PatientManagement() {
+interface PatientManagementProps {
+  onRefresh?: () => void
+}
+
+export function PatientManagement({ onRefresh }: PatientManagementProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedStatus, setSelectedStatus] = useState<string>("all")
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [loading, setLoading] = useState(true)
+  const { profile } = useAuth()
 
-  const filteredPatients = mockPatients.filter((patient) => {
+  useEffect(() => {
+    if (profile) {
+      loadPatients()
+    }
+  }, [profile])
+
+  const loadPatients = async () => {
+    if (!profile) return
+    
+    setLoading(true)
+    try {
+      if (isSupabaseReady) {
+        console.log('Loading real patients for practitioner:', profile.id)
+        
+        // Test: First, let's see if we can fetch any profiles at all
+        console.log('Testing profile fetch...')
+        const { data: testProfiles, error: testError } = await supabase
+          .from('profiles')
+          .select('*')
+          .limit(3)
+        console.log('Test profiles fetch result:', { testProfiles, testError })
+        
+        // Get patients from confirmed appointments
+        const allAppointments = await AppointmentService.getAppointments(profile.id, 'practitioner')
+        console.log('All appointments for practitioner:', allAppointments)
+        const confirmedAppointments = allAppointments.filter(apt => apt.status === 'confirmed')
+        console.log('Confirmed appointments:', confirmedAppointments)
+        
+        // Get unique patients from confirmed appointments with their profile data
+        const uniquePatientIds = [...new Set(confirmedAppointments.map(apt => apt.patient_id))]
+        console.log('Unique patient IDs:', uniquePatientIds)
+        
+        const patientsData = await Promise.all(
+          uniquePatientIds.map(async (patientId) => {
+            const patientAppointments = confirmedAppointments.filter(apt => apt.patient_id === patientId)
+            const nextAppointment = patientAppointments
+              .filter(apt => new Date(apt.appointment_date) > new Date())
+              .sort((a, b) => new Date(a.appointment_date).getTime() - new Date(b.appointment_date).getTime())[0]
+            
+            // Always manually fetch patient profile to ensure we get the data
+            console.log('Fetching patient profile for ID:', patientId)
+            let patientProfile = null
+            try {
+              const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', patientId)
+                .single()
+              
+              if (profileError) {
+                console.error('Error fetching patient profile:', profileError)
+              } else {
+                patientProfile = profileData
+                console.log('Successfully fetched patient profile:', patientProfile)
+              }
+            } catch (error) {
+              console.error('Error in profile fetch:', error)
+            }
+            
+            // Calculate real progress based on completed vs total appointments
+            const totalAppointments = patientAppointments.length
+            const completedAppointments = patientAppointments.filter(apt => apt.status === 'completed').length
+            const progress = totalAppointments > 0 ? Math.round((completedAppointments / totalAppointments) * 100) : 0
+            
+            // Create patient name with better fallback logic
+            let patientName = `Patient ${patientId.slice(0, 8)}` // Default fallback
+            
+            if (patientProfile) {
+              if (patientProfile.first_name || patientProfile.last_name) {
+                patientName = `${patientProfile.first_name || ''} ${patientProfile.last_name || ''}`.trim()
+              } else if (patientProfile.email) {
+                patientName = patientProfile.email.split('@')[0] // Use email username part
+              }
+            }
+            
+            console.log('Final patient name:', patientName, 'from profile:', patientProfile)
+            
+            const patient: Patient = {
+              id: patientId,
+              name: patientName,
+              status: 'active',
+              nextSession: nextAppointment ? new Date(nextAppointment.appointment_date).toLocaleDateString() : 'No upcoming',
+              progress: progress,
+              condition: patientAppointments[0]?.therapy || 'General Therapy',
+              email: patientProfile?.email,
+              first_name: patientProfile?.first_name,
+              last_name: patientProfile?.last_name
+            }
+            return patient
+          })
+        )
+        
+        setPatients(patientsData)
+        console.log('Loaded patients:', patientsData)
+      } else {
+        // Use mock data
+        setPatients(mockPatients)
+      }
+    } catch (error) {
+      console.error('Error loading patients:', error)
+      setPatients(mockPatients) // Fallback to mock data
+    } finally {
+      setLoading(false)
+      // Call the refresh callback if provided
+      if (onRefresh) {
+        onRefresh()
+      }
+    }
+  }
+
+  const filteredPatients = patients.filter((patient) => {
     const matchesSearch =
       patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.condition.toLowerCase().includes(searchTerm.toLowerCase())
+      (patient.condition && patient.condition.toLowerCase().includes(searchTerm.toLowerCase()))
     const matchesStatus = selectedStatus === "all" || patient.status === selectedStatus
     return matchesSearch && matchesStatus
   })
@@ -78,17 +202,40 @@ export function PatientManagement() {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-red-600" />
+          <span className="ml-2 text-gray-600">Loading patients...</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Patient Management</h2>
           <p className="text-gray-600">Manage your patients and their therapy programs</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Showing {filteredPatients.length} patient{filteredPatients.length !== 1 ? 's' : ''} from confirmed appointments
+          </p>
         </div>
-        <Button className="bg-red-600 hover:bg-red-700">
-          <Plus className="h-4 w-4 mr-2" />
-          Add New Patient
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={loadPatients}
+            className="border-red-200 text-red-600 hover:bg-red-50"
+          >
+            Refresh
+          </Button>
+          <Button className="bg-red-600 hover:bg-red-700">
+            <Plus className="h-4 w-4 mr-2" />
+            Add New Patient
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-4">

@@ -5,20 +5,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ChevronLeft, ChevronRight, Plus, Loader2, Edit, X } from "lucide-react"
-import { BookingModal } from "./booking-modal"
+import { BookingModalSimple as BookingModal } from "./booking-modal-simple"
 import { useAuth } from "@/contexts/auth-context"
 import { AppointmentService, Appointment } from "@/lib/appointment-service"
 import { useToast } from "@/hooks/use-toast"
 
 interface AppointmentCalendarProps {
   userType: "patient" | "practitioner"
+  selectedDate?: Date
 }
 
-export function AppointmentCalendar({ userType }: AppointmentCalendarProps) {
+export function AppointmentCalendar({ userType, selectedDate: initialSelectedDate }: AppointmentCalendarProps) {
   const { profile } = useAuth()
   const { toast } = useToast()
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [selectedDate, setSelectedDate] = useState<Date | null>(initialSelectedDate || null)
   const [showBookingModal, setShowBookingModal] = useState(false)
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
@@ -35,10 +36,22 @@ export function AppointmentCalendar({ userType }: AppointmentCalendarProps) {
     
     setLoading(true)
     try {
+      console.log('Loading appointments for:', profile.id, 'userType:', userType)
       const data = await AppointmentService.getAppointments(profile.id, userType)
-      setAppointments(data || [])
+      console.log('Loaded appointments:', data)
+      
+      // For patients, only show confirmed appointments
+      // For practitioners, show all appointments (including scheduled ones for alerts)
+      if (userType === 'patient') {
+        const confirmedAppointments = data.filter(apt => apt.status === 'confirmed')
+        console.log('Filtered confirmed appointments for patient:', confirmedAppointments)
+        setAppointments(confirmedAppointments || [])
+      } else {
+        setAppointments(data || [])
+      }
     } catch (error) {
       console.error('Error loading appointments:', error)
+      console.error('Error details:', error instanceof Error ? error.message : String(error))
       toast({
         title: "Error",
         description: "Failed to load appointments. Please try again.",
@@ -73,10 +86,19 @@ export function AppointmentCalendar({ userType }: AppointmentCalendarProps) {
   }
 
   const getAppointmentsForDate = (date: Date) => {
-    const dateString = date.toISOString().split("T")[0]
+    // Use local date to avoid timezone issues
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const dateString = `${year}-${month}-${day}`
+    
     return appointments.filter((apt) => {
-      const aptDate = new Date(apt.appointment_date).toISOString().split("T")[0]
-      return aptDate === dateString
+      const aptDate = new Date(apt.appointment_date)
+      const aptYear = aptDate.getFullYear()
+      const aptMonth = String(aptDate.getMonth() + 1).padStart(2, '0')
+      const aptDay = String(aptDate.getDate()).padStart(2, '0')
+      const aptDateString = `${aptYear}-${aptMonth}-${aptDay}`
+      return aptDateString === dateString
     })
   }
 
@@ -201,7 +223,10 @@ export function AppointmentCalendar({ userType }: AppointmentCalendarProps) {
                           ? "bg-secondary/10 border-secondary"
                           : "hover:bg-muted"
                     }`}
-                    onClick={() => setSelectedDate(day)}
+                    onClick={() => {
+                      console.log('Calendar day clicked:', day)
+                      setSelectedDate(day)
+                    }}
                   >
                     <div className="text-sm font-medium">{day.getDate()}</div>
                     <div className="space-y-1 mt-1">
@@ -219,6 +244,19 @@ export function AppointmentCalendar({ userType }: AppointmentCalendarProps) {
                       })}
                       {dayAppointments.length > 2 && (
                         <div className="text-xs text-muted-foreground">+{dayAppointments.length - 2} more</div>
+                      )}
+                      {dayAppointments.length === 0 && userType === "patient" && (
+                        <button
+                          className="text-xs text-primary hover:text-primary/80 underline"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            console.log('Setting selected date:', day)
+                            setSelectedDate(day)
+                            setShowBookingModal(true)
+                          }}
+                        >
+                          Book
+                        </button>
                       )}
                     </div>
                   </div>
@@ -313,7 +351,18 @@ export function AppointmentCalendar({ userType }: AppointmentCalendarProps) {
                     )
                   })
                 ) : (
-                  <p className="text-muted-foreground text-center py-8">No appointments scheduled for this date</p>
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground mb-4">No appointments scheduled for this date</p>
+                    {userType === "patient" && (
+                      <Button 
+                        onClick={() => setShowBookingModal(true)}
+                        size="sm"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Book Appointment
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
             ) : (
@@ -323,7 +372,13 @@ export function AppointmentCalendar({ userType }: AppointmentCalendarProps) {
         </Card>
       </div>
 
-      <BookingModal isOpen={showBookingModal} onClose={() => setShowBookingModal(false)} userType={userType} />
+      <BookingModal 
+        isOpen={showBookingModal} 
+        onClose={() => setShowBookingModal(false)} 
+        userType={userType}
+        onAppointmentBooked={loadAppointments}
+        selectedDate={selectedDate || undefined}
+      />
     </div>
   )
 }

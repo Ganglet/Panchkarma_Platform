@@ -22,9 +22,11 @@ interface BookingModalProps {
   isOpen: boolean
   onClose: () => void
   userType: "patient" | "practitioner"
+  onAppointmentBooked?: () => void
+  selectedDate?: Date
 }
 
-export function BookingModal({ isOpen, onClose, userType }: BookingModalProps) {
+export function BookingModal({ isOpen, onClose, userType, onAppointmentBooked, selectedDate }: BookingModalProps) {
   const { profile } = useAuth()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
@@ -54,29 +56,145 @@ export function BookingModal({ isOpen, onClose, userType }: BookingModalProps) {
   useEffect(() => {
     if (isOpen) {
       loadData()
+      // Set selected date or today's date as default
+      let defaultDate
+      if (selectedDate) {
+        // Fix timezone issue by using local date
+        const year = selectedDate.getFullYear()
+        const month = String(selectedDate.getMonth() + 1).padStart(2, '0')
+        const day = String(selectedDate.getDate()).padStart(2, '0')
+        defaultDate = `${year}-${month}-${day}`
+      } else {
+        defaultDate = new Date().toISOString().split('T')[0]
+      }
+      setFormData(prev => ({ ...prev, date: defaultDate }))
+      console.log('Setting default date:', defaultDate)
     }
-  }, [isOpen])
+  }, [isOpen, selectedDate])
+
+  // Debug form data changes
+  useEffect(() => {
+    console.log('Form data changed:', formData)
+  }, [formData])
 
   const loadData = async () => {
     setLoadingData(true)
     try {
       let practitionersData, therapiesData
       
-      if (isSupabaseReady) {
-        // Use real Supabase data
+      console.log('isSupabaseReady:', isSupabaseReady)
+      console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+      console.log('Supabase Key exists:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+      
+      // Force try Supabase first, then fallback to mock data
+      try {
+        console.log('Attempting to load from Supabase...')
         [practitionersData, therapiesData] = await Promise.all([
           PractitionerService.getAllPractitioners(),
           TherapyService.getAllTherapies()
         ])
-      } else {
-        // Use mock data
-        practitionersData = mockPractitioners
+        console.log('Supabase data loaded successfully:', practitionersData?.length, 'practitioners,', therapiesData?.length, 'therapies')
+      } catch (error) {
+        console.error('Error loading Supabase data, falling back to mock data:', error)
+        // Fallback to mock data
+        console.log('Using mock data as fallback')
+        console.log('mockPractitioners:', mockPractitioners)
+        
+        practitionersData = [
+          ...(mockPractitioners || []),
+          {
+            id: 'practitioner-3',
+            email: 'dr.singh@clinic.com',
+            user_type: 'practitioner' as const,
+            first_name: 'Dr. Rajesh',
+            last_name: 'Singh',
+            specialization: 'Panchakarma Therapy',
+            experience_years: 10,
+            clinic_id: 'clinic-1',
+            notification_preferences: {
+              email: true,
+              sms: true,
+              in_app: true,
+              pre_procedure: true,
+              post_procedure: true,
+              appointments: true,
+              reminders: true,
+              timing: 'morning'
+            },
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          },
+          {
+            id: 'practitioner-4',
+            email: 'dr.patel@clinic.com',
+            user_type: 'practitioner' as const,
+            first_name: 'Dr. Priya',
+            last_name: 'Patel',
+            specialization: 'Abhyanga & Shirodhara',
+            experience_years: 8,
+            clinic_id: 'clinic-2',
+            notification_preferences: {
+              email: true,
+              sms: false,
+              in_app: true,
+              pre_procedure: true,
+              post_procedure: true,
+              appointments: true,
+              reminders: true,
+              timing: 'evening'
+            },
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+        ]
         therapiesData = [
-          { id: '1', name: 'Abhyanga', description: 'Full body oil massage', duration_minutes: 60 },
-          { id: '2', name: 'Shirodhara', description: 'Oil pouring on forehead', duration_minutes: 45 },
-          { id: '3', name: 'Basti', description: 'Medicated enema therapy', duration_minutes: 90 },
-          { id: '4', name: 'Nasya', description: 'Nasal administration of medicines', duration_minutes: 30 },
-          { id: '5', name: 'Virechana', description: 'Therapeutic purgation', duration_minutes: 120 }
+          { id: '1', name: 'Abhyanga', description: 'Full body oil massage', duration_minutes: 60, category: 'Massage', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+          { id: '2', name: 'Shirodhara', description: 'Oil pouring on forehead', duration_minutes: 45, category: 'Relaxation', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+          { id: '3', name: 'Basti', description: 'Medicated enema therapy', duration_minutes: 90, category: 'Detoxification', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+          { id: '4', name: 'Nasya', description: 'Nasal administration of medicines', duration_minutes: 30, category: 'Respiratory', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+          { id: '5', name: 'Virechana', description: 'Therapeutic purgation', duration_minutes: 120, category: 'Detoxification', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+        ]
+      }
+      
+      console.log('Final practitioners data:', practitionersData)
+      console.log('Final therapies data:', therapiesData)
+      console.log('Practitioners count:', practitionersData?.length || 0)
+      console.log('Therapies count:', therapiesData?.length || 0)
+      
+      // Ensure we have data
+      if (!practitionersData || practitionersData.length === 0) {
+        console.log('No practitioners data, using fallback')
+        practitionersData = [
+          {
+            id: 'fallback-practitioner-1',
+            email: 'dr.fallback@clinic.com',
+            user_type: 'practitioner' as const,
+            first_name: 'Dr. John',
+            last_name: 'Smith',
+            specialization: 'General Panchakarma',
+            experience_years: 5,
+            clinic_id: 'clinic-1',
+            notification_preferences: {
+              email: true,
+              sms: true,
+              in_app: true,
+              pre_procedure: true,
+              post_procedure: true,
+              appointments: true,
+              reminders: true,
+              timing: 'morning'
+            },
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+        ]
+      }
+      
+      if (!therapiesData || therapiesData.length === 0) {
+        console.log('No therapies data, using fallback')
+        therapiesData = [
+          { id: 'fallback-1', name: 'Abhyanga', description: 'Full body oil massage', duration_minutes: 60, category: 'Massage', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+          { id: 'fallback-2', name: 'Shirodhara', description: 'Oil pouring on forehead', duration_minutes: 45, category: 'Relaxation', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
         ]
       }
       
@@ -144,12 +262,16 @@ export function BookingModal({ isOpen, onClose, userType }: BookingModalProps) {
 
       const appointmentDateTime = new Date(`${formData.date}T${formData.time}:00`)
       
+      // Get therapy duration from selected therapy
+      const selectedTherapy = therapies.find(t => t.id === formData.therapyId)
+      const duration = selectedTherapy?.duration_minutes || 60
+
       const appointmentData = {
         patientId: userType === 'patient' ? profile.id : formData.patientId,
         practitionerId: userType === 'practitioner' ? profile.id : formData.practitionerId,
         therapy: formData.therapy,
         appointmentDate: appointmentDateTime.toISOString(),
-        duration: 60, // Default duration, could be made dynamic based on therapy
+        duration: duration,
         notes: formData.notes,
       }
 
@@ -160,10 +282,23 @@ export function BookingModal({ isOpen, onClose, userType }: BookingModalProps) {
         await new Promise(resolve => setTimeout(resolve, 1000))
       }
 
-      toast({
-        title: "Success",
-        description: "Appointment booked successfully!",
+      const appointmentDate = new Date(appointmentDateTime)
+      const dateStr = appointmentDate.toLocaleDateString()
+      const timeStr = appointmentDate.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
       })
+
+      toast({
+        title: "Appointment Booked Successfully!",
+        description: `${formData.therapy} on ${dateStr} at ${timeStr} with Dr. ${formData.practitioner}`,
+      })
+
+      // Call the callback to refresh appointments
+      if (onAppointmentBooked) {
+        onAppointmentBooked()
+      }
 
       onClose()
       // Reset form
@@ -209,6 +344,10 @@ export function BookingModal({ isOpen, onClose, userType }: BookingModalProps) {
             <span className="ml-2">Loading...</span>
           </div>
         ) : (
+          <div className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+              Debug: {practitioners.length} practitioners, {therapies.length} therapies loaded
+            </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -216,7 +355,9 @@ export function BookingModal({ isOpen, onClose, userType }: BookingModalProps) {
                 <Select 
                   value={formData.therapyId} 
                   onValueChange={(value) => {
+                    console.log('Therapy selected:', value)
                     const therapy = therapies.find(t => t.id === value)
+                    console.log('Found therapy:', therapy)
                     setFormData({ 
                       ...formData, 
                       therapyId: value,
@@ -255,11 +396,18 @@ export function BookingModal({ isOpen, onClose, userType }: BookingModalProps) {
                 <Label htmlFor="time">Time</Label>
                 <Select 
                   value={formData.time} 
-                  onValueChange={(value) => setFormData({ ...formData, time: value })}
+                  onValueChange={(value) => {
+                    console.log('Time selected:', value)
+                    setFormData({ ...formData, time: value })
+                  }}
                   disabled={!formData.date || !formData.practitionerId}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select time" />
+                    <SelectValue placeholder={
+                      !formData.date || !formData.practitionerId 
+                        ? "Select date and practitioner first" 
+                        : `Select time (${availableSlots.length} slots available)`
+                    } />
                   </SelectTrigger>
                   <SelectContent>
                     {(availableSlots.length > 0 ? availableSlots : timeSlots).map((time) => (
@@ -269,6 +417,9 @@ export function BookingModal({ isOpen, onClose, userType }: BookingModalProps) {
                     ))}
                   </SelectContent>
                 </Select>
+                {formData.date && formData.practitionerId && availableSlots.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No available slots for this date. Please select another date.</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -277,7 +428,9 @@ export function BookingModal({ isOpen, onClose, userType }: BookingModalProps) {
                   <Select
                     value={formData.practitionerId}
                     onValueChange={(value) => {
+                      console.log('Practitioner selected:', value)
                       const practitioner = practitioners.find(p => p.id === value)
+                      console.log('Found practitioner:', practitioner)
                       setFormData({ 
                         ...formData, 
                         practitionerId: value,
@@ -329,6 +482,7 @@ export function BookingModal({ isOpen, onClose, userType }: BookingModalProps) {
               </Button>
             </div>
           </form>
+          </div>
         )}
       </DialogContent>
     </Dialog>

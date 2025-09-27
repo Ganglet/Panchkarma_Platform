@@ -13,29 +13,37 @@ export interface NotificationData {
 
 export class NotificationService {
   static async createNotification(data: NotificationData) {
+    console.log('Creating notification with data:', data)
+    
+    const notificationData = {
+      user_id: data.userId,
+      type: data.type,
+      title: data.title,
+      message: data.message,
+      category: data.category,
+      therapy_id: data.therapyId,
+      appointment_id: data.appointmentId,
+      scheduled_for: data.scheduledFor,
+      read: false,
+      sent_email: false,
+      sent_sms: false,
+    }
+    
+    console.log('Notification data to insert:', notificationData)
+    
     const { data: notification, error } = await supabase
       .from('notifications')
-      .insert({
-        user_id: data.userId,
-        type: data.type,
-        title: data.title,
-        message: data.message,
-        category: data.category,
-        therapy_id: data.therapyId,
-        appointment_id: data.appointmentId,
-        scheduled_for: data.scheduledFor,
-        read: false,
-        sent_email: false,
-        sent_sms: false,
-      })
+      .insert(notificationData)
       .select()
       .single()
 
     if (error) {
       console.error('Error creating notification:', error)
+      console.error('Error details:', error.message)
       throw error
     }
 
+    console.log('Notification created successfully:', notification)
     return notification
   }
 

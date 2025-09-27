@@ -45,6 +45,21 @@ export function PatientDashboard() {
     }
   }, [profile])
 
+  // Reload data when switching to overview tab
+  useEffect(() => {
+    if (activeTab === "overview" && profile) {
+      loadDashboardData()
+    }
+  }, [activeTab, profile])
+
+  // Reload appointments when switching to appointments tab
+  useEffect(() => {
+    if (activeTab === "appointments" && profile) {
+      console.log('Switched to appointments tab, reloading appointments...')
+      loadDashboardData()
+    }
+  }, [activeTab])
+
   const loadDashboardData = async () => {
     if (!profile) return
     
@@ -57,16 +72,42 @@ export function PatientDashboard() {
       console.log('Profile ID:', profile.id)
       console.log('Profile type:', profile.user_type)
       
-      // Use the actual profile ID for mock data
       const patientId = profile.id
-      console.log('Using mock data for patient ID:', patientId)
+      console.log('Loading data for patient ID:', patientId)
       console.log('Profile ID:', profile.id, 'Profile email:', profile.email)
       
-      [upcomingData, historyData, statsData] = await Promise.all([
-        MockDataService.getUpcomingAppointments(patientId, 'patient', 5),
-        MockDataService.getTherapyHistory(patientId),
-        MockDataService.getPatientStats(patientId)
-      ])
+      if (isSupabaseReady) {
+        console.log('Using real Supabase data')
+        // Get all appointments and filter for confirmed ones only
+        const allAppointments = await AppointmentService.getAppointments(patientId, 'patient')
+        const confirmedAppointments = allAppointments.filter(apt => apt.status === 'confirmed')
+        const upcomingAppointments = confirmedAppointments.filter(apt => new Date(apt.appointment_date) > new Date())
+        const completedAppointments = allAppointments.filter(apt => apt.status === 'completed')
+        
+        // Calculate real stats from appointments
+        const realStats = {
+          upcomingSessions: upcomingAppointments.length,
+          totalSessions: allAppointments.length,
+          activeTherapies: new Set(confirmedAppointments.map(apt => apt.therapy)).size
+        }
+        
+        const [historyResult] = await Promise.all([
+          MockDataService.getTherapyHistory(patientId), // Keep mock for now
+        ])
+        upcomingData = upcomingAppointments.slice(0, 5) // Show only confirmed upcoming appointments
+        historyData = historyResult
+        statsData = realStats
+      } else {
+        console.log('Using mock data - Supabase not ready')
+        const [upcomingResult, historyResult, statsResult] = await Promise.all([
+          MockDataService.getUpcomingAppointments(patientId, 'patient', 5),
+          MockDataService.getTherapyHistory(patientId),
+          MockDataService.getPatientStats(patientId)
+        ])
+        upcomingData = upcomingResult
+        historyData = historyResult
+        statsData = statsResult
+      }
       
       console.log('Loaded data:', { upcomingData, historyData, statsData })
       console.log('upcomingData type:', typeof upcomingData, 'length:', upcomingData?.length)
@@ -74,8 +115,8 @@ export function PatientDashboard() {
       console.log('statsData type:', typeof statsData, 'content:', statsData)
       
       const finalStats = {
-        upcomingSessions: statsData?.upcomingSessions || statsData?.upcoming || 0,
-        totalSessions: statsData?.totalSessions || statsData?.total || 0,
+        upcomingSessions: statsData?.upcomingSessions || 0,
+        totalSessions: statsData?.totalSessions || 0,
         activeTherapies: statsData?.activeTherapies || historyData?.length || 0
       }
       
@@ -291,8 +332,12 @@ export function PatientDashboard() {
                               minute: '2-digit',
                               hour12: true 
                             })
-                            const practitionerName = appointment.practitioners ? 
-                              `Dr. ${appointment.practitioners.first_name} ${appointment.practitioners.last_name}` : 
+                            console.log('Appointment data for practitioner name:', appointment)
+                            console.log('Practitioner data:', appointment.practitioner)
+                            const practitionerName = appointment.practitioner ? 
+                              `Dr. ${appointment.practitioner.first_name || ''} ${appointment.practitioner.last_name || ''}`.trim() || 
+                              appointment.practitioner.email || 
+                              'Unknown Practitioner' : 
                               'Unknown Practitioner'
                             
                             return (
@@ -411,7 +456,12 @@ export function PatientDashboard() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      <Button className="w-full" variant="default" size="lg">
+                      <Button 
+                        className="w-full" 
+                        variant="default" 
+                        size="lg"
+                        onClick={() => setActiveTab("appointments")}
+                      >
                         <Calendar className="h-4 w-4 mr-2" />
                         Book New Appointment
                       </Button>

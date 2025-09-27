@@ -1,16 +1,20 @@
--- Fix RLS policies to allow user registration
--- Add missing INSERT policy for profiles table
+-- Fix RLS policies to allow viewing practitioner profiles
+-- This allows users to see practitioner profiles for booking appointments
 
-CREATE POLICY "Users can insert own profile" ON profiles
-    FOR INSERT WITH CHECK (auth.uid() = id);
+-- Add policy to allow viewing practitioner profiles
+CREATE POLICY "Users can view practitioner profiles" ON profiles
+FOR SELECT
+TO public
+USING (user_type = 'practitioner');
 
--- Also add INSERT policies for other tables that might be needed during registration
-CREATE POLICY "Users can insert own notifications" ON notifications
-    FOR INSERT WITH CHECK (auth.uid() = user_id);
+-- Also allow viewing all profiles for authenticated users (optional, more permissive)
+-- Uncomment the line below if you want to allow viewing all profiles
+-- CREATE POLICY "Authenticated users can view all profiles" ON profiles
+-- FOR SELECT
+-- TO authenticated
+-- USING (true);
 
-CREATE POLICY "Users can insert own therapy progress" ON therapy_progress
-    FOR INSERT WITH CHECK (auth.uid() = patient_id);
-
-CREATE POLICY "Users can insert own treatment plans" ON treatment_plans
-    FOR INSERT WITH CHECK (auth.uid() = patient_id OR auth.uid() = practitioner_id);
-
+-- Verify the policies
+SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual 
+FROM pg_policies 
+WHERE tablename = 'profiles';

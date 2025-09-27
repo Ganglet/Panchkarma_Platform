@@ -9,6 +9,10 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Bell, Clock, AlertTriangle, CheckCircle, Settings, Mail, Smartphone } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useAuth } from "@/contexts/auth-context"
+import { NotificationService } from "@/lib/notification-service"
+import { isSupabaseReady } from "@/lib/supabase"
+import { useEffect } from "react"
 
 interface Notification {
   id: string
@@ -22,6 +26,7 @@ interface Notification {
 }
 
 export function NotificationCenter() {
+  const { profile } = useAuth()
   const [notifications, setNotifications] = useState<Notification[]>([
     {
       id: "1",
@@ -63,6 +68,39 @@ export function NotificationCenter() {
       category: "general",
     },
   ])
+
+  // Load notifications when component mounts
+  useEffect(() => {
+    if (profile && isSupabaseReady) {
+      loadNotifications()
+    }
+  }, [profile])
+
+  const loadNotifications = async () => {
+    if (!profile) return
+    
+    try {
+      console.log('Loading notifications from Supabase for user:', profile.id)
+      const data = await NotificationService.getNotifications(profile.id)
+      console.log('Loaded notifications:', data)
+      
+      // Convert Supabase notifications to component format
+      const formattedNotifications = data.map(notification => ({
+        id: notification.id,
+        type: notification.type as "reminder" | "alert" | "info" | "success",
+        title: notification.title,
+        message: notification.message,
+        timestamp: notification.created_at,
+        read: notification.read,
+        category: notification.category as "pre-procedure" | "post-procedure" | "appointment" | "general",
+        therapy: notification.therapy_id
+      }))
+      
+      setNotifications(formattedNotifications)
+    } catch (error) {
+      console.error('Error loading notifications:', error)
+    }
+  }
 
   const [notificationSettings, setNotificationSettings] = useState({
     email: true,

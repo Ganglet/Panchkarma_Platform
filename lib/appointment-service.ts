@@ -27,6 +27,8 @@ export interface Appointment {
   updated_at: string
   practitioners?: any
   patients?: any
+  practitioner?: any
+  patient?: any
 }
 
 export class AppointmentService {
@@ -81,12 +83,14 @@ export class AppointmentService {
   }
 
   static async getAppointments(userId: string, userType: 'patient' | 'practitioner') {
+    console.log('getAppointments called with:', { userId, userType })
+    
     const query = supabase
       .from('appointments')
       .select(`
         *,
-        practitioners:profiles!appointments_practitioner_id_fkey(*),
-        patients:profiles!appointments_patient_id_fkey(*)
+        practitioner:profiles!practitioner_id(*),
+        patient:profiles!patient_id(*)
       `)
       .order('appointment_date', { ascending: true })
 
@@ -96,14 +100,66 @@ export class AppointmentService {
       query.eq('practitioner_id', userId)
     }
 
+    console.log('Supabase query for appointments:', query)
     const { data, error } = await query
+    console.log('Supabase query result for appointments:', { data, error })
 
     if (error) {
       console.error('Error fetching appointments:', error)
       throw error
     }
 
+    console.log('getAppointments result:', data)
     return data
+  }
+
+  static async updateAppointmentStatus(appointmentId: string, status: Appointment['status'], notes?: string) {
+    console.log('updateAppointmentStatus called with:', { appointmentId, status, notes })
+    
+    const updateData: any = {
+      status,
+      updated_at: new Date().toISOString()
+    }
+
+    if (notes) {
+      updateData.practitioner_notes = notes
+    }
+
+    console.log('Updating appointment with data:', updateData)
+    
+    const { data, error } = await supabase
+      .from('appointments')
+      .update(updateData)
+      .eq('id', appointmentId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating appointment status:', error)
+      console.error('Error details:', error.message)
+      throw error
+    }
+
+    console.log('Appointment status updated successfully:', data)
+    return data
+  }
+
+  static async deleteAppointment(appointmentId: string) {
+    console.log('deleteAppointment called with:', appointmentId)
+    
+    const { error } = await supabase
+      .from('appointments')
+      .delete()
+      .eq('id', appointmentId)
+
+    if (error) {
+      console.error('Error deleting appointment:', error)
+      console.error('Error details:', error.message)
+      throw error
+    }
+
+    console.log('Appointment deleted successfully')
+    return true
   }
 
   static async getUpcomingAppointments(userId: string, userType: 'patient' | 'practitioner', limit: number = 5) {
