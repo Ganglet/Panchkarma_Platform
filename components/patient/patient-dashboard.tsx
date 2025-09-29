@@ -9,11 +9,12 @@ import { AppointmentCalendar } from "@/components/scheduling/appointment-calenda
 import { TherapyProgress } from "@/components/progress/therapy-progress"
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import { useAuth } from "@/contexts/auth-context"
-import { AppointmentService, Appointment } from "@/lib/appointment-service"
+import { AppointmentServiceClient as AppointmentService, Appointment } from "@/lib/appointment-service-client"
 import { MockDataService } from "@/lib/mock-data-service"
 import { isSupabaseReady } from "@/lib/supabase"
 import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
+import { FloatingChatbotIcon } from "@/components/chatbot/floating-chatbot-icon"
 
 export function PatientDashboard() {
   const [activeTab, setActiveTab] = useState("overview")
@@ -78,23 +79,29 @@ export function PatientDashboard() {
       
       if (isSupabaseReady) {
         console.log('Using real Supabase data')
-        // Get all appointments and filter for confirmed ones only
+        // Get all appointments
         const allAppointments = await AppointmentService.getAppointments(patientId, 'patient')
-        const confirmedAppointments = allAppointments.filter(apt => apt.status === 'confirmed')
-        const upcomingAppointments = confirmedAppointments.filter(apt => new Date(apt.appointment_date) > new Date())
+        console.log('All appointments for patient:', allAppointments)
+        
+        // Show all upcoming appointments (scheduled, confirmed, in_progress)
+        const upcomingAppointments = allAppointments.filter(apt => 
+          ['scheduled', 'confirmed', 'in_progress'].includes(apt.status) && 
+          new Date(apt.appointment_date) > new Date()
+        )
         const completedAppointments = allAppointments.filter(apt => apt.status === 'completed')
+        const confirmedAppointments = allAppointments.filter(apt => apt.status === 'confirmed')
         
         // Calculate real stats from appointments
         const realStats = {
           upcomingSessions: upcomingAppointments.length,
           totalSessions: allAppointments.length,
-          activeTherapies: new Set(confirmedAppointments.map(apt => apt.therapy)).size
+          activeTherapies: new Set(upcomingAppointments.map(apt => apt.therapy)).size
         }
         
         const [historyResult] = await Promise.all([
           MockDataService.getTherapyHistory(patientId), // Keep mock for now
         ])
-        upcomingData = upcomingAppointments.slice(0, 5) // Show only confirmed upcoming appointments
+        upcomingData = upcomingAppointments.slice(0, 5) // Show upcoming appointments (scheduled, confirmed, in_progress)
         historyData = historyResult
         statsData = realStats
       } else {
@@ -517,6 +524,9 @@ export function PatientDashboard() {
           )}
         </AnimatePresence>
       </main>
+      
+      {/* Floating Chatbot - Only for patients */}
+      <FloatingChatbotIcon userType={profile?.user_type} />
     </div>
   )
 }

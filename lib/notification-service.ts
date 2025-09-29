@@ -1,4 +1,6 @@
 import { supabase } from './supabase'
+import { EmailService } from './email-service'
+import { SMSService } from './sms-service'
 
 export interface NotificationData {
   userId: string
@@ -9,6 +11,18 @@ export interface NotificationData {
   therapyId?: string
   appointmentId?: string
   scheduledFor?: string
+}
+
+export interface AppointmentConfirmationData {
+  patientId: string
+  patientName: string
+  patientEmail: string
+  patientPhone?: string
+  therapy: string
+  appointmentDate: string
+  appointmentTime: string
+  practitionerName: string
+  clinicName?: string
 }
 
 export class NotificationService {
@@ -166,6 +180,126 @@ export class NotificationService {
       category: 'appointment',
       appointmentId,
     })
+  }
+
+  static async sendAppointmentConfirmationWithEmailAndSMS(data: AppointmentConfirmationData) {
+    console.log('Sending appointment confirmation with email and SMS:', data)
+    
+    // Create in-app notification
+    const notification = await this.createNotification({
+      userId: data.patientId,
+      type: 'success',
+      title: 'Appointment Confirmed',
+      message: `Your ${data.therapy} session has been confirmed for ${data.appointmentDate} at ${data.appointmentTime}.`,
+      category: 'appointment',
+    })
+
+    // Send email confirmation
+    let emailSent = false
+    if (data.patientEmail) {
+      try {
+        emailSent = await EmailService.sendAppointmentConfirmationEmail({
+          patientName: data.patientName,
+          patientEmail: data.patientEmail,
+          therapy: data.therapy,
+          appointmentDate: data.appointmentDate,
+          appointmentTime: data.appointmentTime,
+          practitionerName: data.practitionerName,
+          clinicName: data.clinicName
+        })
+      } catch (error) {
+        console.error('Error sending confirmation email:', error)
+      }
+    }
+
+    // Send SMS confirmation
+    let smsSent = false
+    if (data.patientPhone) {
+      try {
+        const smsTemplate = SMSService.generateAppointmentConfirmationSMS(
+          data.patientName,
+          data.therapy,
+          data.appointmentDate,
+          data.appointmentTime,
+          data.practitionerName
+        )
+        smsTemplate.to = data.patientPhone
+        smsSent = await SMSService.sendSMS(smsTemplate)
+      } catch (error) {
+        console.error('Error sending confirmation SMS:', error)
+      }
+    }
+
+    // Update notification with delivery status
+    if (notification) {
+      await supabase
+        .from('notifications')
+        .update({
+          sent_email: emailSent,
+          sent_sms: smsSent,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', notification.id)
+    }
+
+    return {
+      notification,
+      emailSent,
+      smsSent
+    }
+  }
+
+  static async sendAppointmentReminderWithEmailAndSMS(
+    patientId: string,
+    patientName: string,
+    patientEmail: string,
+    patientPhone: string,
+    therapy: string,
+    appointmentDate: string,
+    appointmentTime: string,
+    practitionerName: string
+  ) {
+    console.log('Sending appointment reminder with email and SMS')
+
+    // Send email reminder
+    let emailSent = false
+    if (patientEmail) {
+      try {
+        emailSent = await EmailService.sendAppointmentReminderEmail({
+          patientName,
+          patientEmail,
+          therapy,
+          appointmentDate,
+          appointmentTime,
+          practitionerName
+        })
+      } catch (error) {
+        console.error('Error sending reminder email:', error)
+      }
+    }
+
+    // Send SMS reminder
+    let smsSent = false
+    if (patientPhone) {
+      try {
+        const smsTemplate = SMSService.generateAppointmentReminderSMS(
+          patientName,
+          therapy,
+          appointmentDate,
+          appointmentTime,
+          practitionerName
+        )
+        smsTemplate.to = patientPhone
+        smsSent = await SMSService.sendSMS(smsTemplate)
+      } catch (error) {
+        console.error('Error sending reminder SMS:', error)
+      }
+    }
+
+    return {
+      emailSent,
+      smsSent
+    }
   }
 
   static async sendAppointmentCancellation(appointmentId: string, userId: string, therapy: string, reason?: string) {

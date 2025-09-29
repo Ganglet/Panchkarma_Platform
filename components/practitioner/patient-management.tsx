@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Search, Plus, Eye, Edit, Calendar, Loader2 } from "lucide-react"
 import { PractitionerService } from "@/lib/practitioner-service"
-import { AppointmentService } from "@/lib/appointment-service"
+import { AppointmentServiceClient as AppointmentService } from "@/lib/appointment-service-client"
 import { useAuth } from "@/contexts/auth-context"
 import { isSupabaseReady, supabase } from "@/lib/supabase"
 

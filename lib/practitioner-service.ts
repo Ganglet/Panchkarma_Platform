@@ -119,31 +119,33 @@ export class PractitionerService {
   }
 
   static async getPractitionerStats(practitionerId: string) {
-    const now = new Date().toISOString()
-    
-    // Get total patients
-    const { count: totalPatients, error: patientsError } = await supabase
+    // Total unique active patients (confirmed/in_progress/completed)
+    const { data: activeAppts, error: patientsError } = await supabase
       .from('appointments')
-      .select('patient_id', { count: 'exact', head: true })
+      .select('patient_id,status')
       .eq('practitioner_id', practitionerId)
+      .in('status', ['confirmed', 'in_progress', 'completed'])
 
     if (patientsError) {
-      console.error('Error fetching total patients:', patientsError)
+      console.error('Error fetching active patients:', patientsError)
       throw patientsError
     }
 
-    // Get total appointments
+    const totalPatients = new Set((activeAppts || []).map(a => a.patient_id)).size
+
+    // Total appointments (exclude cancelled/no_show)
     const { count: totalAppointments, error: appointmentsError } = await supabase
       .from('appointments')
       .select('*', { count: 'exact', head: true })
       .eq('practitioner_id', practitionerId)
+      .not('status', 'in', '(cancelled,no_show)')
 
     if (appointmentsError) {
       console.error('Error fetching total appointments:', appointmentsError)
       throw appointmentsError
     }
 
-    // Get completed appointments
+    // Completed appointments
     const { count: completedAppointments, error: completedError } = await supabase
       .from('appointments')
       .select('*', { count: 'exact', head: true })
@@ -167,6 +169,7 @@ export class PractitionerService {
       .eq('practitioner_id', practitionerId)
       .gte('appointment_date', today.toISOString())
       .lt('appointment_date', tomorrow.toISOString())
+      .not('status', 'in', '(cancelled,no_show)')
 
     if (todayError) {
       console.error('Error fetching today\'s appointments:', todayError)
@@ -185,6 +188,7 @@ export class PractitionerService {
       .eq('practitioner_id', practitionerId)
       .gte('appointment_date', weekStart.toISOString())
       .lt('appointment_date', weekEnd.toISOString())
+      .not('status', 'in', '(cancelled,no_show)')
 
     if (weekError) {
       console.error('Error fetching week appointments:', weekError)

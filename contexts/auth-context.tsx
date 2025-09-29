@@ -371,7 +371,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           last_name: lastName,
           user_type: userType,
           clinic_id: clinicId
-        }
+        },
+        emailRedirectTo: undefined // Skip email confirmation for development
       }
     })
 

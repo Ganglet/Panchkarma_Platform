@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Bell, Clock, AlertTriangle, CheckCircle, Settings, Mail, Smartphone } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/contexts/auth-context"
-import { NotificationService } from "@/lib/notification-service"
+import { NotificationServiceClient } from "@/lib/notification-service-client"
 import { isSupabaseReady } from "@/lib/supabase"
 import { useEffect } from "react"
 
@@ -27,47 +27,7 @@ interface Notification {
 
 export function NotificationCenter() {
   const { profile } = useAuth()
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: "1",
-      type: "reminder",
-      title: "Pre-Procedure Preparation",
-      message: "Please avoid heavy meals 2 hours before your Abhyanga session tomorrow at 10:00 AM",
-      timestamp: "2024-01-14T18:00:00Z",
-      read: false,
-      category: "pre-procedure",
-      therapy: "Abhyanga",
-    },
-    {
-      id: "2",
-      type: "alert",
-      title: "Appointment Confirmation Required",
-      message: "Please confirm your Shirodhara appointment scheduled for Jan 17, 2:00 PM",
-      timestamp: "2024-01-14T16:30:00Z",
-      read: false,
-      category: "appointment",
-      therapy: "Shirodhara",
-    },
-    {
-      id: "3",
-      type: "info",
-      title: "Post-Procedure Care",
-      message: "Remember to drink warm water and rest for 30 minutes after your session",
-      timestamp: "2024-01-14T14:15:00Z",
-      read: true,
-      category: "post-procedure",
-      therapy: "Abhyanga",
-    },
-    {
-      id: "4",
-      type: "success",
-      title: "Session Completed",
-      message: "Your Panchakarma consultation has been completed. Feedback form is available.",
-      timestamp: "2024-01-14T12:00:00Z",
-      read: true,
-      category: "general",
-    },
-  ])
+  const [notifications, setNotifications] = useState<Notification[]>([])
 
   // Load notifications when component mounts
   useEffect(() => {
@@ -81,7 +41,7 @@ export function NotificationCenter() {
     
     try {
       console.log('Loading notifications from Supabase for user:', profile.id)
-      const data = await NotificationService.getNotifications(profile.id)
+      const data = await NotificationServiceClient.getNotifications(profile.id)
       console.log('Loaded notifications:', data)
       
       // Convert Supabase notifications to component format

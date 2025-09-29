@@ -10,10 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Calendar, Loader2 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
-import { AppointmentService } from "@/lib/appointment-service"
+import { AppointmentServiceClient as AppointmentService } from "@/lib/appointment-service-client"
 import { PractitionerService } from "@/lib/practitioner-service"
 import { TherapyService } from "@/lib/therapy-service"
-import { NotificationService } from "@/lib/notification-service"
+import { NotificationServiceClient } from "@/lib/notification-service-client"
 import { isSupabaseReady } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
@@ -100,23 +100,11 @@ export function BookingModalSimple({ isOpen, onClose, userType, onAppointmentBoo
   const loadData = async () => {
     setLoadingData(true)
     try {
-      console.log('Loading data...')
-      console.log('isSupabaseReady:', isSupabaseReady)
       
       if (isSupabaseReady) {
-        console.log('Attempting to load from Supabase...')
         try {
-          console.log('Calling PractitionerService.getAllPractitioners()...')
           const practitionersData = await PractitionerService.getAllPractitioners()
-          console.log('Practitioners response:', practitionersData)
-          console.log('Practitioners length:', practitionersData?.length)
-          
-          console.log('Calling TherapyService.getAllTherapies()...')
           const therapiesData = await TherapyService.getAllTherapies()
-          console.log('Therapies response:', therapiesData)
-          console.log('Therapies length:', therapiesData?.length)
-          
-          console.log('Supabase data loaded successfully:', practitionersData?.length, 'practitioners,', therapiesData?.length, 'therapies')
           setPractitioners(practitionersData || [])
           setTherapies(therapiesData || [])
         } catch (error) {
@@ -126,34 +114,26 @@ export function BookingModalSimple({ isOpen, onClose, userType, onAppointmentBoo
           
           // Try a direct query to see if it's a service issue
           try {
-            console.log('Trying direct Supabase query...')
             const { supabase } = await import('@/lib/supabase')
             const { data: directData, error: directError } = await supabase
               .from('profiles')
               .select('*')
               .eq('user_type', 'practitioner')
             
-            console.log('Direct query result:', directData)
-            console.log('Direct query error:', directError)
-            
             if (directData && directData.length > 0) {
-              console.log('Direct query successful, using that data')
               setPractitioners(directData)
               setTherapies(fallbackTherapies) // Use fallback for therapies for now
             } else {
-              console.log('Direct query also failed, using fallback data')
               setPractitioners(fallbackPractitioners)
               setTherapies(fallbackTherapies)
             }
           } catch (directError) {
             console.error('Direct query also failed:', directError)
-            console.log('Using fallback data')
             setPractitioners(fallbackPractitioners)
             setTherapies(fallbackTherapies)
           }
         }
       } else {
-        console.log('Supabase not ready, using fallback data')
         setPractitioners(fallbackPractitioners)
         setTherapies(fallbackTherapies)
       }
@@ -183,48 +163,52 @@ export function BookingModalSimple({ isOpen, onClose, userType, onAppointmentBoo
     setLoading(true)
 
     try {
-      console.log('Starting appointment booking...')
-      console.log('Form data:', formData)
-      console.log('Profile:', profile)
-      console.log('User type:', userType)
 
       if (!profile) {
         throw new Error('User not authenticated')
       }
 
       // Validate required fields
+      
       if (!formData.therapyId || !formData.practitionerId || !formData.date || !formData.time) {
-        throw new Error('Please fill in all required fields')
+        const missingFields = []
+        if (!formData.therapyId) missingFields.push('Therapy Type')
+        if (!formData.practitionerId) missingFields.push('Practitioner')
+        if (!formData.date) missingFields.push('Date')
+        if (!formData.time) missingFields.push('Time')
+        
+        toast({
+          title: "Missing Required Fields",
+          description: `Please fill in: ${missingFields.join(', ')}`,
+          variant: "destructive",
+        })
+        return
       }
 
       const appointmentDateTime = new Date(`${formData.date}T${formData.time}:00`)
-      console.log('Appointment datetime:', appointmentDateTime)
       
       // Get therapy duration from selected therapy
       const selectedTherapy = therapies.find(t => t.id === formData.therapyId)
       const duration = selectedTherapy?.duration_minutes || 60
-      console.log('Selected therapy:', selectedTherapy, 'Duration:', duration)
 
       const appointmentData = {
         patientId: userType === 'patient' ? profile.id : formData.patientId,
         practitionerId: userType === 'practitioner' ? profile.id : formData.practitionerId,
         therapy: formData.therapy,
-        appointmentDate: appointmentDateTime.toISOString(),
+        appointmentDate: formData.date, // Just the date part
+        appointmentTime: formData.time, // Just the time part
         duration: duration,
         notes: formData.notes,
       }
 
-      console.log('Appointment data to be sent:', appointmentData)
 
       if (isSupabaseReady) {
-        console.log('Creating appointment in Supabase...')
         const result = await AppointmentService.createAppointment(appointmentData)
-        console.log('Appointment created successfully:', result)
 
         // Create notifications for both patient and practitioner
         try {
           // Patient notification - request forwarded
-          await NotificationService.createNotification({
+          await NotificationServiceClient.createNotification({
             userId: appointmentData.patientId,
             type: 'info',
             title: 'Appointment Request Submitted',
@@ -234,7 +218,7 @@ export function BookingModalSimple({ isOpen, onClose, userType, onAppointmentBoo
           })
 
           // Practitioner notification
-          await NotificationService.createNotification({
+          await NotificationServiceClient.createNotification({
             userId: appointmentData.practitionerId,
             type: 'alert',
             title: 'New Appointment Request',
@@ -243,13 +227,11 @@ export function BookingModalSimple({ isOpen, onClose, userType, onAppointmentBoo
             appointmentId: result.id
           })
 
-          console.log('Notifications created successfully')
         } catch (notificationError) {
           console.error('Error creating notifications:', notificationError)
           // Don't fail the appointment creation if notifications fail
         }
       } else {
-        console.log('Supabase not ready, simulating appointment creation...')
         // Simulate appointment creation with mock data
         await new Promise(resolve => setTimeout(resolve, 1000))
       }
@@ -269,7 +251,6 @@ export function BookingModalSimple({ isOpen, onClose, userType, onAppointmentBoo
 
       // Call the callback to refresh appointments
       if (onAppointmentBooked) {
-        console.log('Calling onAppointmentBooked callback...')
         onAppointmentBooked()
       }
 
@@ -318,20 +299,14 @@ export function BookingModalSimple({ isOpen, onClose, userType, onAppointmentBoo
             <span className="ml-2">Loading...</span>
           </div>
         ) : (
-          <div className="space-y-4">
-            <div className="text-sm text-muted-foreground">
-              Debug: {practitioners.length} practitioners, {therapies.length} therapies loaded
-            </div>
-            <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="therapy">Therapy Type</Label>
                   <Select 
                     value={formData.therapyId} 
                     onValueChange={(value) => {
-                      console.log('Therapy selected:', value)
                       const therapy = therapies.find(t => t.id === value)
-                      console.log('Found therapy:', therapy)
                       setFormData({ 
                         ...formData, 
                         therapyId: value,
@@ -371,7 +346,6 @@ export function BookingModalSimple({ isOpen, onClose, userType, onAppointmentBoo
                   <Select 
                     value={formData.time} 
                     onValueChange={(value) => {
-                      console.log('Time selected:', value)
                       setFormData({ ...formData, time: value })
                     }}
                     disabled={!formData.date || !formData.practitionerId}
@@ -399,9 +373,7 @@ export function BookingModalSimple({ isOpen, onClose, userType, onAppointmentBoo
                     <Select
                       value={formData.practitionerId}
                       onValueChange={(value) => {
-                        console.log('Practitioner selected:', value)
                         const practitioner = practitioners.find(p => p.id === value)
-                        console.log('Found practitioner:', practitioner)
                         setFormData({ 
                           ...formData, 
                           practitionerId: value,
@@ -453,7 +425,6 @@ export function BookingModalSimple({ isOpen, onClose, userType, onAppointmentBoo
                 </Button>
               </div>
             </form>
-          </div>
         )}
       </DialogContent>
     </Dialog>

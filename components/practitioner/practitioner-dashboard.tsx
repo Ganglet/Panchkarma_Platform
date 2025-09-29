@@ -17,7 +17,7 @@ import { TherapyProgress } from "@/components/progress/therapy-progress"
 import { FeedbackSystem } from "@/components/feedback/feedback-system"
 import { useAuth } from "@/contexts/auth-context"
 import { PractitionerService } from "@/lib/practitioner-service"
-import { AppointmentService, Appointment } from "@/lib/appointment-service"
+import { AppointmentServiceClient as AppointmentService, Appointment } from "@/lib/appointment-service-client"
 import { MockDataService } from "@/lib/mock-data-service"
 import { isSupabaseReady } from "@/lib/supabase"
 import { motion, AnimatePresence } from "framer-motion"
@@ -30,6 +30,7 @@ export function PractitionerDashboard() {
   const router = useRouter()
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([])
   const [pendingAppointments, setPendingAppointments] = useState<Appointment[]>([])
+  const [processedAppointments, setProcessedAppointments] = useState<Set<string>>(new Set())
   const [stats, setStats] = useState({
     todayPatients: 0,
     weekPatients: 0,
@@ -43,6 +44,11 @@ export function PractitionerDashboard() {
       loadDashboardData()
     }
   }, [profile])
+
+  const handleAppointmentProcessed = (appointmentId: string) => {
+    console.log('Marking appointment as processed:', appointmentId)
+    setProcessedAppointments(prev => new Set([...prev, appointmentId]))
+  }
 
   const loadDashboardData = async () => {
     console.log('loadDashboardData called')
@@ -313,7 +319,7 @@ export function PractitionerDashboard() {
               </div>
 
               {/* Pending Appointment Alerts */}
-              {pendingAppointments.length > 0 && (
+              {pendingAppointments.filter(appointment => !processedAppointments.has(appointment.id)).length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -325,19 +331,24 @@ export function PractitionerDashboard() {
                         <AlertTriangle className="h-5 w-5 text-orange-500" />
                         Pending Appointment Requests
                         <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                          {pendingAppointments.length}
+                          {pendingAppointments.filter(appointment => !processedAppointments.has(appointment.id)).length}
                         </Badge>
                       </CardTitle>
                       <CardDescription>
-                        You have {pendingAppointments.length} appointment request{pendingAppointments.length !== 1 ? 's' : ''} waiting for your approval
+                        You have {pendingAppointments.filter(appointment => !processedAppointments.has(appointment.id)).length} appointment request{pendingAppointments.filter(appointment => !processedAppointments.has(appointment.id)).length !== 1 ? 's' : ''} waiting for your approval
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {pendingAppointments.map((appointment) => (
+                      {pendingAppointments
+                        .filter(appointment => !processedAppointments.has(appointment.id))
+                        .map((appointment) => (
                         <AppointmentAlert
                           key={appointment.id}
                           appointment={appointment}
-                          onStatusChange={loadDashboardData}
+                          onStatusChange={() => {
+                            handleAppointmentProcessed(appointment.id)
+                            loadDashboardData()
+                          }}
                         />
                       ))}
                     </CardContent>
@@ -416,8 +427,8 @@ export function PractitionerDashboard() {
                             minute: '2-digit',
                             hour12: true 
                           })
-                          const patientName = appointment.patients ? 
-                            `${appointment.patients.first_name} ${appointment.patients.last_name}` : 
+                          const patientName = appointment.patient ? 
+                            `${appointment.patient.first_name} ${appointment.patient.last_name}` : 
                             'Unknown Patient'
                           
                           return (

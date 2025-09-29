@@ -13,7 +13,7 @@ import { Calendar, Loader2 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { PractitionerService, PractitionerProfile } from "@/lib/practitioner-service"
 import { TherapyService, Therapy } from "@/lib/therapy-service"
-import { AppointmentService } from "@/lib/appointment-service"
+import { AppointmentServiceClient as AppointmentService } from "@/lib/appointment-service-client"
 import { MockDataService, mockPractitioners } from "@/lib/mock-data-service"
 import { isSupabaseReady } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
@@ -68,37 +68,27 @@ export function BookingModal({ isOpen, onClose, userType, onAppointmentBooked, s
         defaultDate = new Date().toISOString().split('T')[0]
       }
       setFormData(prev => ({ ...prev, date: defaultDate }))
-      console.log('Setting default date:', defaultDate)
     }
   }, [isOpen, selectedDate])
 
-  // Debug form data changes
-  useEffect(() => {
-    console.log('Form data changed:', formData)
-  }, [formData])
 
   const loadData = async () => {
     setLoadingData(true)
     try {
       let practitionersData, therapiesData
       
-      console.log('isSupabaseReady:', isSupabaseReady)
-      console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
-      console.log('Supabase Key exists:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
       
       // Force try Supabase first, then fallback to mock data
       try {
-        console.log('Attempting to load from Supabase...')
-        [practitionersData, therapiesData] = await Promise.all([
+        const [practitionersResult, therapiesResult] = await Promise.all([
           PractitionerService.getAllPractitioners(),
           TherapyService.getAllTherapies()
         ])
-        console.log('Supabase data loaded successfully:', practitionersData?.length, 'practitioners,', therapiesData?.length, 'therapies')
+        practitionersData = practitionersResult
+        therapiesData = therapiesResult
       } catch (error) {
         console.error('Error loading Supabase data, falling back to mock data:', error)
         // Fallback to mock data
-        console.log('Using mock data as fallback')
-        console.log('mockPractitioners:', mockPractitioners)
         
         practitionersData = [
           ...(mockPractitioners || []),
@@ -156,14 +146,9 @@ export function BookingModal({ isOpen, onClose, userType, onAppointmentBooked, s
         ]
       }
       
-      console.log('Final practitioners data:', practitionersData)
-      console.log('Final therapies data:', therapiesData)
-      console.log('Practitioners count:', practitionersData?.length || 0)
-      console.log('Therapies count:', therapiesData?.length || 0)
       
       // Ensure we have data
       if (!practitionersData || practitionersData.length === 0) {
-        console.log('No practitioners data, using fallback')
         practitionersData = [
           {
             id: 'fallback-practitioner-1',
@@ -191,7 +176,6 @@ export function BookingModal({ isOpen, onClose, userType, onAppointmentBooked, s
       }
       
       if (!therapiesData || therapiesData.length === 0) {
-        console.log('No therapies data, using fallback')
         therapiesData = [
           { id: 'fallback-1', name: 'Abhyanga', description: 'Full body oil massage', duration_minutes: 60, category: 'Massage', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
           { id: 'fallback-2', name: 'Shirodhara', description: 'Oil pouring on forehead', duration_minutes: 45, category: 'Relaxation', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
@@ -253,6 +237,23 @@ export function BookingModal({ isOpen, onClose, userType, onAppointmentBooked, s
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validate required fields
+    const missingFields = []
+    if (!formData.therapyId) missingFields.push('Therapy Type')
+    if (!formData.date) missingFields.push('Date')
+    if (!formData.time) missingFields.push('Time')
+    if (!formData.practitionerId) missingFields.push('Practitioner')
+    
+    if (missingFields.length > 0) {
+      toast({
+        title: "Missing Required Fields",
+        description: `Please fill in: ${missingFields.join(', ')}`,
+        variant: "destructive",
+      })
+      return
+    }
+    
     setLoading(true)
 
     try {
@@ -344,10 +345,6 @@ export function BookingModal({ isOpen, onClose, userType, onAppointmentBooked, s
             <span className="ml-2">Loading...</span>
           </div>
         ) : (
-          <div className="space-y-4">
-            <div className="text-sm text-muted-foreground">
-              Debug: {practitioners.length} practitioners, {therapies.length} therapies loaded
-            </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -355,9 +352,7 @@ export function BookingModal({ isOpen, onClose, userType, onAppointmentBooked, s
                 <Select 
                   value={formData.therapyId} 
                   onValueChange={(value) => {
-                    console.log('Therapy selected:', value)
                     const therapy = therapies.find(t => t.id === value)
-                    console.log('Found therapy:', therapy)
                     setFormData({ 
                       ...formData, 
                       therapyId: value,
@@ -397,7 +392,6 @@ export function BookingModal({ isOpen, onClose, userType, onAppointmentBooked, s
                 <Select 
                   value={formData.time} 
                   onValueChange={(value) => {
-                    console.log('Time selected:', value)
                     setFormData({ ...formData, time: value })
                   }}
                   disabled={!formData.date || !formData.practitionerId}
@@ -428,9 +422,7 @@ export function BookingModal({ isOpen, onClose, userType, onAppointmentBooked, s
                   <Select
                     value={formData.practitionerId}
                     onValueChange={(value) => {
-                      console.log('Practitioner selected:', value)
                       const practitioner = practitioners.find(p => p.id === value)
-                      console.log('Found practitioner:', practitioner)
                       setFormData({ 
                         ...formData, 
                         practitionerId: value,
@@ -482,7 +474,6 @@ export function BookingModal({ isOpen, onClose, userType, onAppointmentBooked, s
               </Button>
             </div>
           </form>
-          </div>
         )}
       </DialogContent>
     </Dialog>

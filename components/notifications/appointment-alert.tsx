@@ -1,13 +1,12 @@
 "use client"
 
-import React from "react"
+import React, { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Check, X, Calendar, Clock, User, Stethoscope } from "lucide-react"
-import { Appointment } from "@/lib/appointment-service"
-import { AppointmentService } from "@/lib/appointment-service"
-import { NotificationService } from "@/lib/notification-service"
+import { Check, X, Calendar, Clock, User, Stethoscope, Loader2 } from "lucide-react"
+import { Appointment, AppointmentServiceClient as AppointmentService } from "@/lib/appointment-service-client"
+import { NotificationServiceClient } from "@/lib/notification-service-client"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 
@@ -18,8 +17,12 @@ interface AppointmentAlertProps {
 
 export function AppointmentAlert({ appointment, onStatusChange }: AppointmentAlertProps) {
   const { toast } = useToast()
+  const [isProcessed, setIsProcessed] = useState(false)
+  const [isAccepting, setIsAccepting] = useState(false)
+  const [isDeclining, setIsDeclining] = useState(false)
 
   const handleAccept = async () => {
+    setIsAccepting(true)
     console.log('Accept button clicked for appointment:', appointment.id)
     console.log('Appointment data:', appointment)
     
@@ -45,83 +48,115 @@ export function AppointmentAlert({ appointment, onStatusChange }: AppointmentAle
     }
     
     try {
-      // Test 1: Just try to update appointment status
-      console.log('=== TEST 1: Updating appointment status ===')
+      console.log('=== Confirming appointment via API ===')
       console.log('Appointment ID:', appointment.id)
       console.log('Current status:', appointment.status)
       
-      const updateResult = await AppointmentService.updateAppointmentStatus(appointment.id, 'confirmed')
-      console.log('Update result:', updateResult)
-      console.log('✅ Appointment status updated successfully')
+      // Use the API endpoint that handles both status update and notifications
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
 
-      // Test 2: Try to create notification
-      console.log('=== TEST 2: Creating notification ===')
-      console.log('Patient ID:', appointment.patient_id)
-      
-      const notificationResult = await NotificationService.createNotification({
-        userId: appointment.patient_id,
-        type: 'success',
-        title: 'Appointment Confirmed!',
-        message: `Your ${appointment.therapy} appointment has been confirmed by your practitioner for ${new Date(appointment.appointment_date).toLocaleDateString()} at ${new Date(appointment.appointment_date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}.`,
-        category: 'appointment',
-        appointmentId: appointment.id
+      const response = await fetch('/api/appointments/confirm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({
+          appointmentId: appointment.id,
+          status: 'confirmed',
+          notes: 'Confirmed by practitioner',
+          appointmentData: appointment // Send the full appointment data
+        })
       })
-      console.log('Notification result:', notificationResult)
-      console.log('✅ Notification created successfully')
 
-      // Test 3: Refresh dashboard
-      console.log('=== TEST 3: Refreshing dashboard ===')
+      console.log('Response status:', response.status)
+      console.log('Response ok:', response.ok)
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('❌ API Error:', errorData)
+        throw new Error(errorData.error || 'Failed to confirm appointment')
+      }
+
+      const result = await response.json()
+      console.log('✅ Appointment confirmed successfully:', result)
+      
+      // Mark as processed to hide the card
+      console.log('Setting isProcessed to true')
+      setIsProcessed(true)
+      console.log('isProcessed set to true')
+      
+      // Refresh dashboard
       onStatusChange()
-      console.log('✅ Dashboard refresh called')
-
+      
       toast({
-        title: "Appointment Accepted",
-        description: "The appointment has been confirmed and the patient has been notified.",
+        title: "Appointment Confirmed",
+        description: result.notificationsSent 
+          ? "The appointment has been confirmed and email notifications sent."
+          : "The appointment has been confirmed.",
+        variant: "default",
       })
       
     } catch (error) {
       console.error('❌ Error in handleAccept:', error)
-      console.error('Error name:', error?.name)
-      console.error('Error message:', error?.message)
-      console.error('Error code:', error?.code)
-      console.error('Error details:', error?.details)
-      console.error('Error hint:', error?.hint)
       
       toast({
         title: "Error",
-        description: `Failed to accept appointment: ${error?.message || 'Unknown error'}`,
+        description: `Failed to confirm appointment: ${error?.message || 'Unknown error'}`,
         variant: "destructive",
       })
+    } finally {
+      setIsAccepting(false)
     }
   }
 
   const handleDecline = async () => {
+    setIsDeclining(true)
     console.log('Decline button clicked for appointment:', appointment.id)
     try {
-      console.log('Creating decline notification for patient:', appointment.patient_id)
-      // Create notification for patient first
-      await NotificationService.createNotification({
-        userId: appointment.patient_id,
-        type: 'warning',
-        title: 'Appointment Declined',
-        message: `Your ${appointment.therapy} appointment request has been declined by your practitioner due to being too busy. Please book another time.`,
-        category: 'appointment',
-        appointmentId: appointment.id
+      // Use the API endpoint to decline the appointment
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
+
+      const response = await fetch('/api/appointments/confirm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({
+          appointmentId: appointment.id,
+          status: 'cancelled',
+          notes: 'Declined by practitioner - too busy',
+          appointmentData: appointment // Send the full appointment data
+        })
       })
-      console.log('Notification created successfully')
 
-      console.log('Deleting appointment from database:', appointment.id)
-      // Delete the appointment from database
-      await AppointmentService.deleteAppointment(appointment.id)
-      console.log('Appointment deleted successfully')
+      console.log('Decline response status:', response.status)
+      console.log('Decline response ok:', response.ok)
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('❌ Decline API Error:', errorData)
+        throw new Error(errorData.error || 'Failed to decline appointment')
+      }
 
-      console.log('Appointment declined successfully')
+      const result = await response.json()
+      console.log('✅ Appointment declined successfully:', result)
+
+      // Mark as processed to hide the card
+      console.log('Setting isProcessed to true (decline)')
+      setIsProcessed(true)
+      console.log('isProcessed set to true (decline)')
+
+      // Notification is created on the server now (API). No client insert to avoid RLS 403.
+
       toast({
         title: "Appointment Declined",
         description: "The appointment has been declined and the patient has been notified.",
       })
 
-      console.log('Calling onStatusChange callback')
       onStatusChange()
     } catch (error) {
       console.error('Error declining appointment:', error)
@@ -131,6 +166,8 @@ export function AppointmentAlert({ appointment, onStatusChange }: AppointmentAle
         description: "Failed to decline appointment. Please try again.",
         variant: "destructive",
       })
+    } finally {
+      setIsDeclining(false)
     }
   }
 
@@ -141,6 +178,13 @@ export function AppointmentAlert({ appointment, onStatusChange }: AppointmentAle
     minute: '2-digit',
     hour12: true 
   })
+
+  // Don't render if already processed
+  console.log('AppointmentAlert render - isProcessed:', isProcessed, 'appointmentId:', appointment.id)
+  if (isProcessed) {
+    console.log('AppointmentAlert: Hiding card because isProcessed is true')
+    return null
+  }
 
   return (
     <Card className="border-l-4 border-l-blue-500">
@@ -197,18 +241,28 @@ export function AppointmentAlert({ appointment, onStatusChange }: AppointmentAle
             onClick={handleAccept}
             size="sm"
             className="flex-1 bg-green-600 hover:bg-green-700"
+            disabled={isAccepting || isDeclining}
           >
-            <Check className="h-4 w-4 mr-2" />
-            Accept
+            {isAccepting ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Check className="h-4 w-4 mr-2" />
+            )}
+            {isAccepting ? "Accepting..." : "Accept"}
           </Button>
           <Button 
             onClick={handleDecline}
             size="sm"
             variant="destructive"
             className="flex-1"
+            disabled={isAccepting || isDeclining}
           >
-            <X className="h-4 w-4 mr-2" />
-            Decline
+            {isDeclining ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <X className="h-4 w-4 mr-2" />
+            )}
+            {isDeclining ? "Declining..." : "Decline"}
           </Button>
         </div>
       </CardContent>

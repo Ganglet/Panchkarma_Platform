@@ -131,7 +131,11 @@ export class AppointmentService {
       .from('appointments')
       .update(updateData)
       .eq('id', appointmentId)
-      .select()
+      .select(`
+        *,
+        patient:profiles!patient_id(*),
+        practitioner:profiles!practitioner_id(*)
+      `)
       .single()
 
     if (error) {
@@ -141,6 +145,41 @@ export class AppointmentService {
     }
 
     console.log('Appointment status updated successfully:', data)
+
+    // Send confirmation notifications when status is changed to 'confirmed'
+    if (status === 'confirmed' && data.patient) {
+      try {
+        const appointmentDate = new Date(data.appointment_date)
+        const appointmentTime = appointmentDate.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        })
+        const appointmentDateStr = appointmentDate.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        })
+
+        await NotificationService.sendAppointmentConfirmationWithEmailAndSMS({
+          patientId: data.patient_id,
+          patientName: `${data.patient.first_name} ${data.patient.last_name}`,
+          patientEmail: data.patient.email,
+          patientPhone: data.patient.phone,
+          therapy: data.therapy,
+          appointmentDate: appointmentDateStr,
+          appointmentTime: appointmentTime,
+          practitionerName: `${data.practitioner?.first_name || ''} ${data.practitioner?.last_name || ''}`.trim(),
+          clinicName: data.practitioner?.clinic_id ? 'Panchakarma Wellness Center' : undefined
+        })
+
+        console.log('✅ Appointment confirmation notifications sent successfully')
+      } catch (notificationError) {
+        console.error('❌ Error sending appointment confirmation notifications:', notificationError)
+        // Don't throw error - appointment status update was successful
+      }
+    }
+
     return data
   }
 

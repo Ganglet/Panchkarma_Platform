@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { ChevronLeft, ChevronRight, Plus, Loader2, Edit, X } from "lucide-react"
 import { BookingModalSimple as BookingModal } from "./booking-modal-simple"
 import { useAuth } from "@/contexts/auth-context"
-import { AppointmentService, Appointment } from "@/lib/appointment-service"
+import { AppointmentServiceClient as AppointmentService, Appointment } from "@/lib/appointment-service-client"
 import { useToast } from "@/hooks/use-toast"
 
 interface AppointmentCalendarProps {
@@ -40,14 +40,18 @@ export function AppointmentCalendar({ userType, selectedDate: initialSelectedDat
       const data = await AppointmentService.getAppointments(profile.id, userType)
       console.log('Loaded appointments:', data)
       
-      // For patients, only show confirmed appointments
+      // For patients, show all appointments (scheduled, confirmed, in_progress)
       // For practitioners, show all appointments (including scheduled ones for alerts)
       if (userType === 'patient') {
-        const confirmedAppointments = data.filter(apt => apt.status === 'confirmed')
-        console.log('Filtered confirmed appointments for patient:', confirmedAppointments)
-        setAppointments(confirmedAppointments || [])
+        const patientAppointments = data.filter(apt => 
+          ['scheduled', 'confirmed', 'in_progress'].includes(apt.status)
+        )
+        console.log('Filtered appointments for patient:', patientAppointments)
+        setAppointments(patientAppointments || [])
       } else {
-        setAppointments(data || [])
+        // Practitioners: hide cancelled/no_show appointments from calendar view
+        const visible = (data || []).filter(apt => apt.status !== 'cancelled' && apt.status !== 'no_show')
+        setAppointments(visible)
       }
     } catch (error) {
       console.error('Error loading appointments:', error)
@@ -291,7 +295,7 @@ export function AppointmentCalendar({ userType, selectedDate: initialSelectedDat
                       minute: '2-digit',
                       hour12: true 
                     })
-                    const otherUser = userType === "patient" ? appointment.practitioners : appointment.patients
+                    const otherUser = userType === "patient" ? appointment.practitioner : appointment.patient
                     const otherUserName = otherUser ? `${otherUser.first_name} ${otherUser.last_name}` : 'Unknown'
                     
                     return (
