@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NotificationService } from '@/lib/notification-service'
 import { createClient } from '@supabase/supabase-js'
+import { sendAppointmentConfirmation } from '@/lib/server-email-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -105,33 +106,23 @@ export async function POST(request: NextRequest) {
         const recipientEmail = data.patient.email
         console.log('📧 Sending to patient email:', recipientEmail)
 
-        // Send email using Gmail SMTP
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-        const emailResult = await fetch(`${baseUrl}/api/send-email`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            type: 'confirmation',
-            appointmentData: {
-              patientName: `${data.patient.first_name} ${data.patient.last_name}`,
-              patientEmail: recipientEmail,
-              practitionerName: `${data.practitioner?.first_name || ''} ${data.practitioner?.last_name || ''}`.trim(),
-              date: appointmentDateStr,
-              time: appointmentTime,
-              therapy: data.therapy,
-              location: 'Panchakarma Center'
-            }
-          })
+        // Send email directly using the email service
+        const emailResult = await sendAppointmentConfirmation({
+          patientName: `${data.patient.first_name} ${data.patient.last_name}`,
+          patientEmail: recipientEmail,
+          practitionerName: `${data.practitioner?.first_name || ''} ${data.practitioner?.last_name || ''}`.trim(),
+          date: appointmentDateStr,
+          time: appointmentTime,
+          therapy: data.therapy,
+          location: 'Panchakarma Center'
         })
 
-        emailResponse = await emailResult.json()
+        emailResponse = emailResult
         
-        if (!emailResult.ok) {
-          console.error('❌ Email notification failed:', emailResponse)
+        if (!emailResult.success) {
+          console.error('❌ Email notification failed:', emailResult.error)
         } else {
-          console.log('✅ Email notification sent successfully:', emailResponse)
+          console.log('✅ Email notification sent successfully:', emailResult.messageId)
         }
 
         // Create in-app notification on the server (satisfy RLS)
