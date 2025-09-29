@@ -2,13 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
-// Initialize Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, supabaseKey)
+// Function to get Google AI client
+function getGoogleAIClient() {
+  const apiKey = process.env.GOOGLE_API_KEY
+  if (!apiKey) {
+    throw new Error('Missing Google API key. Please check your environment variables.')
+  }
+  return new GoogleGenerativeAI(apiKey)
+}
 
-// Initialize Google AI
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+// Function to get Supabase client
+function getSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Missing Supabase configuration. Please check your environment variables.')
+  }
+  
+  return createClient(supabaseUrl, supabaseKey)
+}
 
 // Simple keyword-based retrieval function
 function retrieveDocuments(query: string, documents: any[], k: number = 5) {
@@ -41,6 +54,9 @@ export async function POST(request: NextRequest) {
     if (!question) {
       return NextResponse.json({ error: 'Question is required' }, { status: 400 })
     }
+
+    // Get Supabase client
+    const supabase = getSupabaseClient()
 
     // Get documents from Supabase
     const { data: documents, error } = await supabase
@@ -102,6 +118,7 @@ If the context doesn't contain enough information, say so clearly. Be concise an
 Answer:`
 
     // Get response from Google AI
+    const genAI = getGoogleAIClient()
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
     const result = await model.generateContent(prompt)
     const response = await result.response
